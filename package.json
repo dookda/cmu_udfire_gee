@@ -1,0 +1,14 @@
+{
+  "name": "udfire_gee",
+  "version": "1.0.0",
+  "description": "udfire google earth engine version",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "udfire"
+  ],
+  "author": "sakda homhuan",
+  "license": "ISC"
+}
