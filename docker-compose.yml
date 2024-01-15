@@ -1,0 +1,13 @@
+version: '3'
+services:
+  nodejs:
+    image: node:latest
+    container_name: nodejs
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgis
+    volumes:
+      - ./nodejs:/app
+    command: sh -c "npm i && npm i -g nodemon && nodemon"
