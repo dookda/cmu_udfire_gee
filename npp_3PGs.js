@@ -84,14 +84,6 @@ function mergeBands(feature) {
 }
 
 function showChart(mdCollection, site) {
-    var chartPanel = ui.Panel({
-        style: {
-            width: '30%',
-            padding: '8px',
-            height: '200px',
-            position: 'bottom-left'
-        }
-    });
 
     var chartUi = ui.Chart.image.series({
         imageCollection: mdCollection,
@@ -103,8 +95,6 @@ function showChart(mdCollection, site) {
 
     chartPanel.clear()
     chartPanel.add(chartUi)
-
-    Map.add(chartPanel);
 }
 
 function showMap(mdCollection, dateEnd) {
@@ -138,13 +128,22 @@ function showMap(mdCollection, dateEnd) {
     Map.addLayer(mdCollection.select('NPP').median(), visBiomass, "NPP " + dateEnd, true, 0.8);
 }
 
-function zonalStat(mdCollection, feature) {
+function exportToCSV(sampledValues, endDate) {
+    Export.table.toDrive({
+        collection: sampledValues,
+        description: 'sampling pixel values ' + endDate,
+        fileFormat: 'CSV'
+    });
+}
+
+function zonalStat(mdCollection, feature, dateEnd) {
     var sampledValues = mdCollection.median()
         .sampleRegions({
             collection: feature,
             scale: 500,
             geometries: true
         });
+    exportToCSV(sampledValues, dateEnd);
     return sampledValues;
 }
 
@@ -187,12 +186,33 @@ function init(dateEnd) {
     showChart(mdCollection, site);
     showMap(mdCollection, dateEnd);
 
-    var zStat = zonalStat(mdCollection, points);
+    var zStat = zonalStat(mdCollection, points, dateEnd);
     print(zStat);
 }
 
-init('2023-11-01');
+// init chart
+var chartPanel = ui.Panel({
+    style: {
+        width: '30%',
+        padding: '8px',
+        height: '200px',
+        position: 'bottom-left'
+    }
+});
+Map.add(chartPanel);
 
+// set date of data
+var dateArray = ['2023-11-15', '2023-11-20', '2023-11-25',
+    '2023-11-30', '2023-12-05', '2023-12-10',
+    '2023-12-15', '2023-12-20', '2023-12-25',
+    '2023-12-30', '2024-01-05']
+
+dateArray.forEach(function (i) {
+    print(i);
+    init(i);
+})
+
+// add statics feature
 var visPolygonBorder = {
     color: 'red',
     width: 2,
