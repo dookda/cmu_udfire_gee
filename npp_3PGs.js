@@ -66,12 +66,12 @@ function calFpar(image) {
 
 function calPar(image) {
     var dsr24hr = image.select('GMT_0900_DSR').multiply(18000).divide(1000000)
-    var fpar = dsr24hr.multiply(0.45).rename('PAR');
-    var fparWithProperties = fpar.copyProperties({
+    var par = dsr24hr.multiply(0.45).rename('PAR');
+    var parWithProperties = par.copyProperties({
         source: image,
         properties: ['system:time_start']
     });
-    return image.addBands(fparWithProperties);
+    return image.addBands(parWithProperties);
 }
 
 function calApar(image) {
