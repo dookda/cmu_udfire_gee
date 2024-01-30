@@ -1,16 +1,21 @@
 var site = ee.FeatureCollection("projects/earthengine-380405/assets/thapla");
 var points = ee.FeatureCollection("projects/earthengine-380405/assets/paktab_sampling");
+var poly = ee.Geometry.Polygon(
+    [[[100.41393344491567, 17.741727506427726],
+    [100.41393344491567, 17.739438531998285],
+    [100.4200274237975, 17.739438531998285],
+    [100.4200274237975, 17.741727506427726]]], null, false);
 
 function getDataset(dateEnd) {
     var d = ee.Date(dateEnd);
-    var dateStart = d.advance(-1, 'week').format('yyyy-MM-dd');
+    var dateStart = d.advance(-5, 'day').format('yyyy-MM-dd');
 
     var mdData = ee.ImageCollection('MODIS/061/MOD09GA')
         .filterDate(dateStart, dateEnd);
 
     var mcdData = ee.ImageCollection('MODIS/061/MCD18A1')
         .filterDate(dateStart, dateEnd)
-        .select('GMT_0300_DSR');
+        .select('GMT_0900_DSR');
 
     return { md: mdData, mcd: mcdData }
 }
@@ -60,7 +65,7 @@ function calFpar(image) {
 }
 
 function calPar(image) {
-    var dsr24hr = image.select('GMT_0300_DSR').multiply(86400).divide(1000000)
+    var dsr24hr = image.select('GMT_0900_DSR').multiply(18000).divide(1000000)
     var fpar = dsr24hr.multiply(0.45).rename('PAR');
     var fparWithProperties = fpar.copyProperties({
         source: image,
@@ -112,7 +117,7 @@ function showMap(mdCollection, dateEnd) {
 
     var visBiomass = {
         min: 0,
-        max: 70,
+        max: 5,
         palette: ['red', 'yellow', 'green']
     }
 
@@ -131,7 +136,7 @@ function showMap(mdCollection, dateEnd) {
 function exportToCSV(sampledValues, endDate) {
     Export.table.toDrive({
         collection: sampledValues,
-        description: 'sampling pixel values ' + endDate,
+        description: 'sampling_point_5d_' + endDate,
         fileFormat: 'CSV'
     });
 }
@@ -141,8 +146,10 @@ function zonalStat(mdCollection, feature, dateEnd) {
         .sampleRegions({
             collection: feature,
             scale: 500,
+            properties: ['id'],
             geometries: true
         });
+
     exportToCSV(sampledValues, dateEnd);
     return sampledValues;
 }
@@ -187,7 +194,6 @@ function init(dateEnd) {
     showMap(mdCollection, dateEnd);
 
     var zStat = zonalStat(mdCollection, points, dateEnd);
-    print(zStat);
 }
 
 // init chart
@@ -207,10 +213,10 @@ var dateArray = ['2023-11-15', '2023-11-20', '2023-11-25',
     '2023-12-15', '2023-12-20', '2023-12-25',
     '2023-12-30', '2024-01-05']
 
+// init(dateArray[0]);
 dateArray.forEach(function (i) {
-    print(i);
     init(i);
-})
+});
 
 // add statics feature
 var visPolygonBorder = {
@@ -219,5 +225,6 @@ var visPolygonBorder = {
 }
 
 var siteLine = site.map(convertPolygonToLine);
+Map.addLayer(poly, visPolygonBorder, "site", true);
 Map.addLayer(siteLine, visPolygonBorder, "site", true);
-Map.addLayer(points, { color: 'blue' }, "sampling point", true);
+// Map.addLayer(points, { color: 'blue' }, "sampling point", true);
