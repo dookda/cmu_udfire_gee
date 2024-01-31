@@ -6,6 +6,54 @@ var poly = ee.Geometry.Polygon(
     [100.4200274237975, 17.739438531998285],
     [100.4200274237975, 17.741727506427726]]], null, false);
 
+// ui
+ui.root.clear();
+// var map = ui.Map();
+
+var mapPanel = ui.Map();
+
+var rightPanel = ui.Panel({
+    widgets: [ui.Label('rightPanel')],
+    style: { width: '30%' }
+});
+
+var leftPanel = ui.Panel({
+    widgets: [ui.Label('leftPanel')],
+    style: { width: '20%' }
+});
+
+var midPanel = ui.SplitPanel({
+    firstPanel: mapPanel,
+    secondPanel: rightPanel,
+    orientation: 'horizontal',
+})
+
+var mainPanel = ui.SplitPanel({
+    firstPanel: leftPanel,
+    secondPanel: ui.Panel(midPanel),
+    orientation: 'horizontal'
+})
+
+// var midPanel = ui.SplitPanel({
+//   firstPanel: mapPanel,
+//   secondPanel: bottomPanel,
+//   orientation: 'vertical'
+// });
+
+// var rightPanel = ui.SplitPanel({
+//   firstPanel: ui.Panel(midPanel),
+//   secondPanel: infoPanel,
+//   orientation: 'horizontal',
+// })
+
+// var mainPanel = ui.SplitPanel({
+//   firstPanel: panelOne,
+//   secondPanel: ui.Panel(panelTwo),
+//   orientation: 'horizontal'
+// })
+
+ui.root.add(mainPanel);
+
 function getDataset(dateEnd) {
     var d = ee.Date(dateEnd);
     var dateStart = d.advance(-5, 'day').format('yyyy-MM-dd');
@@ -98,8 +146,8 @@ function showChart(mdCollection, site) {
         xProperty: 'system:time_start'
     });
 
-    chartPanel.clear()
-    chartPanel.add(chartUi)
+    rightPanel.clear()
+    rightPanel.add(chartUi)
 }
 
 function showMap(mdCollection, dateEnd) {
@@ -121,7 +169,7 @@ function showMap(mdCollection, dateEnd) {
         palette: ['red', 'yellow', 'green']
     }
 
-    Map.centerObject(site);
+    mapPanel.centerObject(site);
     // Map.addLayer(mdProj.median(), visBand , "true color", false, 0.8);
     // Map.addLayer(mdCollection.select('NDVI').median(), visPalette , "NDVI", true, 0.8);
     // Map.addLayer(mdCollection.select('NDVIdiff').median(), visPalette , "NDVIdiff", true, 0.8);
@@ -130,7 +178,7 @@ function showMap(mdCollection, dateEnd) {
     // Map.addLayer(mdCollection.select('PAR').median(), visPalette , "PAR", true, 0.8);
     // Map.addLayer(mdCollection.select('APAR').median(), visPalette , "APAR", true, 0.8);
     // Map.addLayer(mdCollection.select('GPP').median(), visBiomass , "GPP", true, 0.8);
-    Map.addLayer(mdCollection.select('NPP').median(), visBiomass, "NPP " + dateEnd, true, 0.8);
+    mapPanel.addLayer(mdCollection.select('NPP').median(), visBiomass, "NPP " + dateEnd, true, 0.8);
 }
 
 function exportToCSV(sampledValues, endDate) {
@@ -193,30 +241,63 @@ function init(dateEnd) {
     showChart(mdCollection, site);
     showMap(mdCollection, dateEnd);
 
-    var zStat = zonalStat(mdCollection, points, dateEnd);
+    // var zStat = zonalStat(mdCollection, points, dateEnd);
 }
 
-// init chart
-var chartPanel = ui.Panel({
-    style: {
-        width: '30%',
-        padding: '8px',
-        height: '200px',
-        position: 'bottom-left'
-    }
-});
-Map.add(chartPanel);
+function changeDate() {
+    var date = dateSliderUi.getValue()
+    print(date);
+}
 
+var txtSlideUi = ui.Label({ value: 'เลือก % การปกคลุมของเมฆ', style: { margin: '4px 8px' } });
+leftPanel.add(txtSlideUi);
+
+var sliderUi = ui.Slider({
+    min: 0,
+    max: 100,
+    value: 50,
+    style: { width: '90%' }
+});
+leftPanel.add(sliderUi);
+
+var txtDateUi = ui.Label({ value: 'เลือกวันที่', style: { margin: '4px 8px' } });
+leftPanel.add(txtDateUi);
+var dateSliderUi = ui.DateSlider({
+    start: '2010-01-01',
+    style: { width: '80%' }
+});
+leftPanel.add(dateSliderUi);
+
+var txtDateCompositeUi = ui.Label({ value: 'เลือกจำนวนวัน ที่ต้องการ composite', style: { margin: '4px 8px' } });
+leftPanel.add(txtDateCompositeUi);
+
+var dateItems = [
+    { label: '3 วัน', value: 3 },
+    { label: '5 วัน', value: 5 },
+    { label: '7 วัน', value: 7 },
+    { label: '15 วัน', value: 15 },
+    { label: '30 วัน', value: 30 },
+];
+var dateCompositeUi = ui.Select({
+    item: dateItems,
+    style: { width: '80%' }
+});
+leftPanel.add(dateCompositeUi);
+
+
+dateSliderUi.onChange(changeDate)
 // set date of data
 var dateArray = ['2023-11-15', '2023-11-20', '2023-11-25',
     '2023-11-30', '2023-12-05', '2023-12-10',
     '2023-12-15', '2023-12-20', '2023-12-25',
     '2023-12-30', '2024-01-05']
 
-// init(dateArray[0]);
-dateArray.forEach(function (i) {
-    init(i);
-});
+init(dateArray[0]);
+// dateArray.forEach(function (i) {
+//     init(i);
+// });
+
+
 
 // add statics feature
 var visPolygonBorder = {
@@ -225,6 +306,6 @@ var visPolygonBorder = {
 }
 
 var siteLine = site.map(convertPolygonToLine);
-Map.addLayer(poly, visPolygonBorder, "site", true);
-Map.addLayer(siteLine, visPolygonBorder, "site", true);
+mapPanel.addLayer(poly, visPolygonBorder, "site", true);
+mapPanel.addLayer(siteLine, visPolygonBorder, "site", true);
 // Map.addLayer(points, { color: 'blue' }, "sampling point", true);
