@@ -10,7 +10,7 @@ var poly = ee.Geometry.Polygon(
 ui.root.clear();
 // var map = ui.Map();
 
-var mapPanel = ui.Map();
+var map = ui.Map();
 
 var rightPanel = ui.Panel({
     widgets: [ui.Label('rightPanel')],
@@ -23,7 +23,7 @@ var leftPanel = ui.Panel({
 });
 
 var midPanel = ui.SplitPanel({
-    firstPanel: mapPanel,
+    firstPanel: map,
     secondPanel: rightPanel,
     orientation: 'horizontal',
 })
@@ -34,35 +34,17 @@ var mainPanel = ui.SplitPanel({
     orientation: 'horizontal'
 })
 
-// var midPanel = ui.SplitPanel({
-//   firstPanel: mapPanel,
-//   secondPanel: bottomPanel,
-//   orientation: 'vertical'
-// });
-
-// var rightPanel = ui.SplitPanel({
-//   firstPanel: ui.Panel(midPanel),
-//   secondPanel: infoPanel,
-//   orientation: 'horizontal',
-// })
-
-// var mainPanel = ui.SplitPanel({
-//   firstPanel: panelOne,
-//   secondPanel: ui.Panel(panelTwo),
-//   orientation: 'horizontal'
-// })
-
 ui.root.add(mainPanel);
 
-function getDataset(dateEnd) {
+function getDataset(dateEnd, dateComposite) {
     var d = ee.Date(dateEnd);
-    var dateStart = d.advance(-5, 'day').format('yyyy-MM-dd');
+    var dateStart = d.advance(dateComposite, 'day').format('yyyy-MM-dd');
 
     var mdData = ee.ImageCollection('MODIS/061/MOD09GA')
-        .filterDate(dateStart, dateEnd);
+        .filter(ee.Filter.date(dateStart, dateEnd))
 
     var mcdData = ee.ImageCollection('MODIS/061/MCD18A1')
-        .filterDate(dateStart, dateEnd)
+        .filter(ee.Filter.date(dateStart, dateEnd))
         .select('GMT_0900_DSR');
 
     return { md: mdData, mcd: mcdData }
@@ -150,6 +132,46 @@ function showChart(mdCollection, site) {
     rightPanel.add(chartUi)
 }
 
+function makeColorBarParams(palette) {
+    var nSteps = 10;
+    return {
+        bbox: [0, 0, nSteps, 0.1],
+        dimensions: '100x10',
+        format: 'png',
+        min: 0,
+        max: nSteps,
+        palette: palette,
+    };
+}
+
+function showLegend(indexName, visPalette) {
+    var legendTitle = ui.Label({
+        value: indexName,
+        style: { fontWeight: 'normal' }
+    });
+
+    var colorBar = ui.Thumbnail({
+        image: ee.Image.pixelLonLat().select(0).int(),
+        params: makeColorBarParams(visPalette.palette),
+        style: { stretch: 'horizontal', margin: '0px 8px', maxHeight: '24px' },
+    });
+
+    var legendLabels = ui.Panel({
+        widgets: [
+            ui.Label(visPalette.min, { margin: '4px 8px' }),
+            ui.Label(
+                ((visPalette.max - visPalette.min) / 2 + visPalette.min),
+                { margin: '4px 8px', textAlign: 'center', stretch: 'horizontal' }),
+            ui.Label(visPalette.max, { margin: '4px 8px' })
+        ],
+        layout: ui.Panel.Layout.flow('horizontal')
+    });
+
+    rightPanel.add(legendTitle);
+    rightPanel.add(colorBar);
+    rightPanel.add(legendLabels);
+}
+
 function showMap(mdCollection, dateEnd) {
     var visBand = {
         min: 1000,
@@ -163,22 +185,89 @@ function showMap(mdCollection, dateEnd) {
         palette: ['red', 'yellow', 'green']
     }
 
+    var visNdmi = {
+        min: -1,
+        max: 1,
+        palette: ['DCF2F1', '7FC7D9', '365486', '0F1035']
+    }
+
+    var visSr = {
+        min: 0,
+        max: 500,
+        palette: ['F3EDC8', 'EAD196', 'BF3131', '7D0A0A']
+    }
+
     var visBiomass = {
         min: 0,
         max: 5,
-        palette: ['red', 'yellow', 'green']
+        palette: ['43766C', 'F8FAE5', 'B19470', '76453B']
     }
 
-    mapPanel.centerObject(site);
-    // Map.addLayer(mdProj.median(), visBand , "true color", false, 0.8);
-    // Map.addLayer(mdCollection.select('NDVI').median(), visPalette , "NDVI", true, 0.8);
-    // Map.addLayer(mdCollection.select('NDVIdiff').median(), visPalette , "NDVIdiff", true, 0.8);
-    // Map.addLayer(mdCollection.select('NDMI').median(), visPalette , "NDMI", true, 0.8);
-    // Map.addLayer(mdCollection.select('FPAR').median(), visPalette , "FPAR", true, 0.8);
-    // Map.addLayer(mdCollection.select('PAR').median(), visPalette , "PAR", true, 0.8);
-    // Map.addLayer(mdCollection.select('APAR').median(), visPalette , "APAR", true, 0.8);
-    // Map.addLayer(mdCollection.select('GPP').median(), visBiomass , "GPP", true, 0.8);
-    mapPanel.addLayer(mdCollection.select('NPP').median(), visBiomass, "NPP " + dateEnd, true, 0.8);
+    var visPolygonBorder = {
+        color: 'red',
+        width: 2,
+    }
+
+    var cbNdvi = chkbNdvi.getValue();
+    var cbNdviDiff = chkbNdviDiff.getValue();
+    var cbNdmi = chkbNdmi.getValue();
+    var cbSr = chkbSr.getValue();
+    var cbFpar = chkbFpar.getValue();
+    var cbPar = chkbPar.getValue();
+    var cbApar = chkbApar.getValue();
+    var cbGpp = chkbGpp.getValue();
+    var cbNpp = chkbNpp.getValue();
+
+    map.clear()
+    map.centerObject(site);
+
+    if (cbNdvi) {
+        map.addLayer(mdCollection.select('NDVI').median(), visPalette, "NDVI", true, 0.8);
+        showLegend('cbNdvi', visPalette)
+    }
+
+    if (cbNdviDiff) {
+        map.addLayer(mdCollection.select('NDVIdiff').median(), visPalette, "NDVIdiff", true, 0.8);
+        showLegend('cbNdviDiff', visPalette)
+    }
+
+    if (cbNdmi) {
+        map.addLayer(mdCollection.select('NDMI').median(), visNdmi, "NDMI", true, 0.8);
+        showLegend('cbNdmi', visNdmi)
+    }
+
+    if (cbFpar) {
+        map.addLayer(mdCollection.select('FPAR').median(), visPalette, "FPAR", true, 0.8);
+        showLegend('cbFpar', visPalette)
+    }
+
+    if (cbSr) {
+        map.addLayer(mdCollection.select('GMT_0900_DSR').median(), visSr, "SR", true, 0.8);
+        showLegend('cbSr', visSr)
+    }
+
+    if (cbPar) {
+        map.addLayer(mdCollection.select('PAR').median(), visPalette, "PAR", true, 0.8);
+        showLegend('cbPar', visPalette)
+    }
+
+    if (cbApar) {
+        map.addLayer(mdCollection.select('APAR').median(), visPalette, "APAR", true, 0.8);
+        showLegend('cbApar', visPalette)
+    }
+
+    if (cbGpp) {
+        map.addLayer(mdCollection.select('GPP').median(), visBiomass, "GPP", true, 0.8);
+        showLegend('cbGpp (Kg/m^2)', visBiomass)
+    }
+
+    if (cbNpp) {
+        map.addLayer(mdCollection.select('NPP').median(), visBiomass, "NPP ", true, 0.8);
+        showLegend('cbNpp (Kg/m^2)', visBiomass)
+    }
+    // add static feature
+    var siteLine = site.map(convertPolygonToLine);
+    map.addLayer(siteLine, visPolygonBorder, "site", true);
 }
 
 function exportToCSV(sampledValues, endDate) {
@@ -202,8 +291,16 @@ function zonalStat(mdCollection, feature, dateEnd) {
     return sampledValues;
 }
 
-function init(dateEnd) {
-    var dataset = getDataset(dateEnd);
+function loadData() {
+    var dd = dateSliderUi.getValue();
+    var dateEnd = ee.Date(dd[1]).format('YYYY-MM-dd');
+
+    var dateComposite = dateCompositeUi.getValue() * -1;
+
+    // get imageCollection
+    var dataset = getDataset(dateEnd, dateComposite);
+    print(dataset)
+
     var filter = ee.Filter.equals({
         leftField: 'system:time_start',
         rightField: 'system:time_start'
@@ -239,36 +336,56 @@ function init(dateEnd) {
     var mdCollection = allCollection.map(calApar);
 
     showChart(mdCollection, site);
-    showMap(mdCollection, dateEnd);
+    showMap(mdCollection, dateEnd.getInfo());
 
     // var zStat = zonalStat(mdCollection, points, dateEnd);
 }
 
-function changeDate() {
-    var date = dateSliderUi.getValue()
-    print(date);
-}
+var txtCloudSlideUi = ui.Label({
+    value: 'เลือก % การปกคลุมของเมฆ',
+    style: {
+        margin: '4px 8px',
+        fontSize: '18px',
+        fontWeight: 1000
+    }
+});
 
-var txtSlideUi = ui.Label({ value: 'เลือก % การปกคลุมของเมฆ', style: { margin: '4px 8px' } });
-leftPanel.add(txtSlideUi);
+leftPanel.add(txtCloudSlideUi);
 
-var sliderUi = ui.Slider({
+var cloudSliderUi = ui.Slider({
     min: 0,
     max: 100,
     value: 50,
     style: { width: '90%' }
 });
-leftPanel.add(sliderUi);
+leftPanel.add(cloudSliderUi);
 
-var txtDateUi = ui.Label({ value: 'เลือกวันที่', style: { margin: '4px 8px' } });
+var txtDateUi = ui.Label({
+    value: 'เลือกวันที่',
+    style: {
+        margin: '4px 8px',
+        fontSize: '18px',
+        fontWeight: 1000
+    }
+});
 leftPanel.add(txtDateUi);
+
 var dateSliderUi = ui.DateSlider({
     start: '2010-01-01',
+    // end: '2023-12-31',
+    value: '2023-11-15',
     style: { width: '80%' }
 });
 leftPanel.add(dateSliderUi);
 
-var txtDateCompositeUi = ui.Label({ value: 'เลือกจำนวนวัน ที่ต้องการ composite', style: { margin: '4px 8px' } });
+var txtDateCompositeUi = ui.Label({
+    value: 'เลือกจำนวนวัน ที่ต้องการ composite',
+    style: {
+        margin: '4px 8px',
+        fontSize: '18px',
+        fontWeight: 1000
+    }
+});
 leftPanel.add(txtDateCompositeUi);
 
 var dateItems = [
@@ -277,35 +394,104 @@ var dateItems = [
     { label: '7 วัน', value: 7 },
     { label: '15 วัน', value: 15 },
     { label: '30 วัน', value: 30 },
+    { label: '60 วัน', value: 30 },
+    { label: '120 วัน', value: 120 },
+    { label: '360 วัน', value: 360 },
 ];
 var dateCompositeUi = ui.Select({
-    item: dateItems,
+    items: dateItems,
+    value: 3,
     style: { width: '80%' }
 });
 leftPanel.add(dateCompositeUi);
 
+var txtDateCompositeUi = ui.Label({
+    value: 'เลือกชั้นข้อมูลที่ต้องการแสดงผล',
+    style: {
+        margin: '4px 8px',
+        fontSize: '18px',
+        fontWeight: 1000
+    }
+});
+leftPanel.add(txtDateCompositeUi);
 
-dateSliderUi.onChange(changeDate)
-// set date of data
+var chkbNdvi = ui.Checkbox({
+    label: 'Normalized Difference Vegetation Index: NDVI',
+    value: true
+})
+leftPanel.add(chkbNdvi);
+
+var chkbNdviDiff = ui.Checkbox({
+    label: 'NDVI diff',
+    value: false
+})
+leftPanel.add(chkbNdviDiff);
+
+var chkbNdmi = ui.Checkbox({
+    label: 'Normalized Difference Moisture Index: NDMI',
+    value: false
+})
+leftPanel.add(chkbNdmi);
+
+var chkbFpar = ui.Checkbox({
+    label: 'Fraction of Photosynthetically Active Radiation: FPAR',
+    value: false
+})
+leftPanel.add(chkbFpar);
+
+var chkbSr = ui.Checkbox({
+    label: 'Surface Radiation: SR',
+    value: false
+})
+leftPanel.add(chkbSr);
+
+var chkbPar = ui.Checkbox({
+    label: 'Photosynthetically Active Radiation: PAR',
+    value: false
+})
+leftPanel.add(chkbPar);
+
+var chkbApar = ui.Checkbox({
+    label: 'Absorption Photosynthetically Active Radiation: APAR',
+    value: false
+})
+leftPanel.add(chkbApar);
+
+var chkbGpp = ui.Checkbox({
+    label: 'Gross Primary Productivity: GPP',
+    value: false
+})
+leftPanel.add(chkbGpp);
+
+var chkbNpp = ui.Checkbox({
+    label: 'Net Primary Productivity: NPP',
+    value: true
+})
+leftPanel.add(chkbNpp);
+
+cloudSliderUi.onChange(loadData);
+dateSliderUi.onChange(loadData);
+dateCompositeUi.onChange(loadData);
+
+chkbNdvi.onChange(loadData);
+chkbNdviDiff.onChange(loadData);
+chkbNdmi.onChange(loadData);
+chkbSr.onChange(loadData);
+chkbFpar.onChange(loadData);
+chkbPar.onChange(loadData);
+chkbApar.onChange(loadData);
+chkbGpp.onChange(loadData);
+chkbNpp.onChange(loadData);
+
+// field collection date
 var dateArray = ['2023-11-15', '2023-11-20', '2023-11-25',
     '2023-11-30', '2023-12-05', '2023-12-10',
     '2023-12-15', '2023-12-20', '2023-12-25',
     '2023-12-30', '2024-01-05']
 
-init(dateArray[0]);
+loadData();
+
 // dateArray.forEach(function (i) {
 //     init(i);
 // });
 
-
-
-// add statics feature
-var visPolygonBorder = {
-    color: 'red',
-    width: 2,
-}
-
-var siteLine = site.map(convertPolygonToLine);
-mapPanel.addLayer(poly, visPolygonBorder, "site", true);
-mapPanel.addLayer(siteLine, visPolygonBorder, "site", true);
-// Map.addLayer(points, { color: 'blue' }, "sampling point", true);
