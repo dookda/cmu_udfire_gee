@@ -6,10 +6,8 @@ var poly = ee.Geometry.Polygon(
     [100.4200274237975, 17.739438531998285],
     [100.4200274237975, 17.741727506427726]]], null, false);
 
-// ui
+// init ui
 ui.root.clear();
-// var map = ui.Map();
-
 var map = ui.Map();
 
 var rightPanel = ui.Panel({
@@ -47,7 +45,12 @@ function getDataset(dateEnd, dateComposite) {
         .filter(ee.Filter.date(dateStart, dateEnd))
         .select('GMT_0900_DSR');
 
-    return { md: mdData, mcd: mcdData }
+    var firms = ee.ImageCollection("FIRMS")
+        .filter(ee.Filter.date(dateStart, dateEnd))
+        // .filter(ee.Filter.bounds(site))
+        .select('T21');
+
+    return { md: mdData, mcd: mcdData, firms: firms }
 }
 
 function calIndex(image) {
@@ -118,10 +121,9 @@ function mergeBands(feature) {
     return mergedImage;
 }
 
-function showChart(mdCollection, site) {
-
+function showChart(mdCollection, bandArr, site) {
     var chartUi = ui.Chart.image.series({
-        imageCollection: mdCollection,
+        imageCollection: mdCollection.select(bandArr),
         region: site,
         reducer: ee.Reducer.mean(),
         scale: 500,
@@ -203,6 +205,12 @@ function showMap(mdCollection, dateEnd) {
         palette: ['43766C', 'F8FAE5', 'B19470', '76453B']
     }
 
+    var visFirms = {
+        min: 0,
+        max: 1000,
+        palette: ['red']
+    }
+
     var visPolygonBorder = {
         color: 'red',
         width: 2,
@@ -218,56 +226,69 @@ function showMap(mdCollection, dateEnd) {
     var cbGpp = chkbGpp.getValue();
     var cbNpp = chkbNpp.getValue();
 
+    var bandArr = [];
+
     map.clear()
     map.centerObject(site);
 
     if (cbNdvi) {
         map.addLayer(mdCollection.select('NDVI').median(), visPalette, "NDVI", true, 0.8);
-        showLegend('cbNdvi', visPalette)
+        showLegend('cbNdvi', visPalette);
+        bandArr.push('NDVI');
     }
 
     if (cbNdviDiff) {
         map.addLayer(mdCollection.select('NDVIdiff').median(), visPalette, "NDVIdiff", true, 0.8);
-        showLegend('cbNdviDiff', visPalette)
+        showLegend('cbNdviDiff', visPalette);
+        bandArr.push('NDVIdiff');
     }
 
     if (cbNdmi) {
         map.addLayer(mdCollection.select('NDMI').median(), visNdmi, "NDMI", true, 0.8);
-        showLegend('cbNdmi', visNdmi)
+        showLegend('cbNdmi', visNdmi);
+        bandArr.push('NDMI');
     }
 
     if (cbFpar) {
         map.addLayer(mdCollection.select('FPAR').median(), visPalette, "FPAR", true, 0.8);
-        showLegend('cbFpar', visPalette)
+        showLegend('cbFpar', visPalette);
+        bandArr.push('FPAR');
     }
 
     if (cbSr) {
         map.addLayer(mdCollection.select('GMT_0900_DSR').median(), visSr, "SR", true, 0.8);
-        showLegend('cbSr', visSr)
+        showLegend('cbSr', visSr);
+        bandArr.push('GMT_0900_DSR');
     }
 
     if (cbPar) {
         map.addLayer(mdCollection.select('PAR').median(), visPalette, "PAR", true, 0.8);
-        showLegend('cbPar', visPalette)
+        showLegend('cbPar', visPalette);
+        bandArr.push('PAR');
     }
 
     if (cbApar) {
         map.addLayer(mdCollection.select('APAR').median(), visPalette, "APAR", true, 0.8);
-        showLegend('cbApar', visPalette)
+        showLegend('cbApar', visPalette);
+        bandArr.push('APAR');
     }
 
     if (cbGpp) {
         map.addLayer(mdCollection.select('GPP').median(), visBiomass, "GPP", true, 0.8);
-        showLegend('cbGpp (Kg/m^2)', visBiomass)
+        showLegend('cbGpp (Kg/m^2)', visBiomass);
+        bandArr.push('GPP');
     }
 
     if (cbNpp) {
         map.addLayer(mdCollection.select('NPP').median(), visBiomass, "NPP ", true, 0.8);
-        showLegend('cbNpp (Kg/m^2)', visBiomass)
+        showLegend('cbNpp (Kg/m^2)', visBiomass);
+        bandArr.push('NPP');
     }
-    // add static feature
+
     var siteLine = site.map(convertPolygonToLine);
     map.addLayer(siteLine, visPolygonBorder, "site", true);
+
+    showChart(mdCollection, bandArr, site);
 }
 
 function exportToCSV(sampledValues, endDate) {
@@ -299,7 +320,6 @@ function loadData() {
 
     // get imageCollection
     var dataset = getDataset(dateEnd, dateComposite);
-    print(dataset)
 
     var filter = ee.Filter.equals({
         leftField: 'system:time_start',
@@ -335,9 +355,7 @@ function loadData() {
     var allCollection = ee.ImageCollection.fromImages(listIndexFparParNdvidiff);
     var mdCollection = allCollection.map(calApar);
 
-    showChart(mdCollection, site);
     showMap(mdCollection, dateEnd.getInfo());
-
     // var zStat = zonalStat(mdCollection, points, dateEnd);
 }
 
@@ -379,7 +397,7 @@ var dateSliderUi = ui.DateSlider({
 leftPanel.add(dateSliderUi);
 
 var txtDateCompositeUi = ui.Label({
-    value: 'เลือกจำนวนวัน ที่ต้องการ composite',
+    value: 'เลือกจำนวนวันย้อนหลัง',
     style: {
         margin: '4px 8px',
         fontSize: '18px',
@@ -396,11 +414,12 @@ var dateItems = [
     { label: '30 วัน', value: 30 },
     { label: '60 วัน', value: 30 },
     { label: '120 วัน', value: 120 },
+    { label: '180 วัน', value: 180 },
     { label: '360 วัน', value: 360 },
 ];
 var dateCompositeUi = ui.Select({
     items: dateItems,
-    value: 3,
+    value: 7,
     style: { width: '80%' }
 });
 leftPanel.add(dateCompositeUi);
