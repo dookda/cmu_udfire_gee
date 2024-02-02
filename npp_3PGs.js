@@ -10,6 +10,20 @@ var poly = ee.Geometry.Polygon(
 ui.root.clear();
 var map = ui.Map();
 
+var legendPanel = ui.Panel({
+    widgets: [ui.Label('leftPanel')],
+    style: {
+        width: '150px',
+        padding: '8px',
+        backgroundColor: 'rgba(255, 255, 255, 0.8)'
+    }
+})
+legendPanel.style().set({
+    position: 'bottom-left',
+    margin: '0px 0px 30px 30px'
+});
+
+
 var rightPanel = ui.Panel({
     widgets: [ui.Label('rightPanel')],
     style: { width: '30%' }
@@ -130,7 +144,13 @@ function showChart(mdCollection, bandArr, site) {
         xProperty: 'system:time_start'
     });
 
-    rightPanel.clear()
+    var chartOptions = {
+        hAxis: { title: 'วันที่' },
+        vAxis: { title: 'index' },
+        curveType: 'function',
+    };
+
+    chartUi.setOptions(chartOptions);
     rightPanel.add(chartUi)
 }
 
@@ -160,18 +180,42 @@ function showLegend(indexName, visPalette) {
 
     var legendLabels = ui.Panel({
         widgets: [
-            ui.Label(visPalette.min, { margin: '4px 8px' }),
+            ui.Label(visPalette.min.toFixed(1), { margin: '4px 8px' }),
             ui.Label(
-                ((visPalette.max - visPalette.min) / 2 + visPalette.min),
+                ((visPalette.max - visPalette.min) / 2 + visPalette.min).toFixed(1),
                 { margin: '4px 8px', textAlign: 'center', stretch: 'horizontal' }),
-            ui.Label(visPalette.max, { margin: '4px 8px' })
+            ui.Label(visPalette.max.toFixed(1), { margin: '4px 8px' })
         ],
         layout: ui.Panel.Layout.flow('horizontal')
     });
 
-    rightPanel.add(legendTitle);
-    rightPanel.add(colorBar);
-    rightPanel.add(legendLabels);
+    legendPanel.add(legendTitle);
+    legendPanel.add(colorBar);
+    legendPanel.add(legendLabels);
+}
+
+function showMinValue(mdCollection) {
+    var min = mdCollection.min();
+
+    var minValue = min.reduceRegion({
+        reducer: ee.Reducer.min(),
+        geometry: site,
+        scale: 30,
+        maxPixels: 1e9
+    });
+    return minValue
+}
+
+function showMaxValue(mdCollection) {
+    var max = mdCollection.max();
+
+    var maxValue = max.reduceRegion({
+        reducer: ee.Reducer.max(),
+        geometry: site,
+        scale: 30,
+        maxPixels: 1e9
+    });
+    return maxValue
 }
 
 function showMap(mdCollection, dateEnd) {
@@ -187,28 +231,11 @@ function showMap(mdCollection, dateEnd) {
         palette: ['red', 'yellow', 'green']
     }
 
-    var visNdmi = {
-        min: -1,
-        max: 1,
-        palette: ['DCF2F1', '7FC7D9', '365486', '0F1035']
-    }
-
-    var visSr = {
-        min: 0,
-        max: 500,
-        palette: ['F3EDC8', 'EAD196', 'BF3131', '7D0A0A']
-    }
-
-    var visBiomass = {
-        min: 0,
-        max: 5,
-        palette: ['43766C', 'F8FAE5', 'B19470', '76453B']
-    }
-
-    var visFirms = {
-        min: 0,
-        max: 1000,
-        palette: ['red']
+    var palette = {
+        ndvi: ['red', 'yellow', 'green'],
+        ndmi: ['DCF2F1', '7FC7D9', '365486', '0F1035'],
+        sr: ['F3EDC8', 'EAD196', 'BF3131', '7D0A0A'],
+        bm: ['43766C', 'F8FAE5', 'B19470', '76453B']
     }
 
     var visPolygonBorder = {
@@ -228,67 +255,140 @@ function showMap(mdCollection, dateEnd) {
 
     var bandArr = [];
 
+    rightPanel.clear();
+    legendPanel.clear();
+
     map.clear()
     map.centerObject(site);
 
+    map.add(legendPanel);
+
+    var min;
+    var max;
+    var band;
+    var vis = {};
+
     if (cbNdvi) {
-        map.addLayer(mdCollection.select('NDVI').median(), visPalette, "NDVI", true, 0.8);
-        showLegend('cbNdvi', visPalette);
-        bandArr.push('NDVI');
+        band = 'NDVI';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.ndvi;
+
+        map.addLayer(mdCollection.select(band).median(), vis, "NDVI", true, 0.8);
+        showLegend(band, vis);
+        bandArr.push(band);
     }
 
     if (cbNdviDiff) {
-        map.addLayer(mdCollection.select('NDVIdiff').median(), visPalette, "NDVIdiff", true, 0.8);
-        showLegend('cbNdviDiff', visPalette);
+        band = 'NDVIdiff';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.ndvi;
+
+        map.addLayer(mdCollection.select('NDVIdiff').median(), vis, "NDVIdiff", true, 0.8);
+        showLegend('NDVIdiff', vis);
         bandArr.push('NDVIdiff');
     }
 
     if (cbNdmi) {
-        map.addLayer(mdCollection.select('NDMI').median(), visNdmi, "NDMI", true, 0.8);
-        showLegend('cbNdmi', visNdmi);
+        band = 'NDMI';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.ndmi;
+
+        map.addLayer(mdCollection.select('NDMI').median(), vis, "NDMI", true, 0.8);
+        showLegend('NDMI', vis);
         bandArr.push('NDMI');
     }
 
     if (cbFpar) {
-        map.addLayer(mdCollection.select('FPAR').median(), visPalette, "FPAR", true, 0.8);
-        showLegend('cbFpar', visPalette);
+        band = 'FPAR';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.ndvi;
+
+        map.addLayer(mdCollection.select('FPAR').median(), vis, "FPAR", true, 0.8);
+        showLegend('FPAR', vis);
         bandArr.push('FPAR');
     }
 
     if (cbSr) {
-        map.addLayer(mdCollection.select('GMT_0900_DSR').median(), visSr, "SR", true, 0.8);
-        showLegend('cbSr', visSr);
+        band = 'GMT_0900_DSR';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.sr;
+
+        map.addLayer(mdCollection.select('GMT_0900_DSR').median(), vis, "SR", true, 0.8);
+        showLegend('SR (W/m^2)', vis);
         bandArr.push('GMT_0900_DSR');
     }
 
     if (cbPar) {
-        map.addLayer(mdCollection.select('PAR').median(), visPalette, "PAR", true, 0.8);
-        showLegend('cbPar', visPalette);
+        band = 'PAR';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.ndvi;
+
+        map.addLayer(mdCollection.select('PAR').median(), vis, "PAR", true, 0.8);
+        showLegend('PAR', vis);
         bandArr.push('PAR');
     }
 
     if (cbApar) {
-        map.addLayer(mdCollection.select('APAR').median(), visPalette, "APAR", true, 0.8);
-        showLegend('cbApar', visPalette);
+        band = 'APAR';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.ndvi;
+
+        map.addLayer(mdCollection.select('APAR').median(), vis, "APAR", true, 0.8);
+        showLegend('APAR', vis);
         bandArr.push('APAR');
     }
 
     if (cbGpp) {
-        map.addLayer(mdCollection.select('GPP').median(), visBiomass, "GPP", true, 0.8);
-        showLegend('cbGpp (Kg/m^2)', visBiomass);
+        band = 'GPP';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.bm;
+
+        map.addLayer(mdCollection.select('GPP').median(), vis, "GPP", true, 0.8);
+        showLegend('GPP (Kg/m^2)', vis);
         bandArr.push('GPP');
     }
 
     if (cbNpp) {
-        map.addLayer(mdCollection.select('NPP').median(), visBiomass, "NPP ", true, 0.8);
-        showLegend('cbNpp (Kg/m^2)', visBiomass);
+        band = 'NPP';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.bm;
+
+        map.addLayer(mdCollection.select('NPP').median(), vis, "NPP ", true, 0.8);
+        showLegend('NPP (Kg/m^2)', vis);
         bandArr.push('NPP');
     }
 
+    showChart(mdCollection, bandArr, site);
+
     var siteLine = site.map(convertPolygonToLine);
     map.addLayer(siteLine, visPolygonBorder, "site", true);
-
-    showChart(mdCollection, bandArr, site);
 }
 
 function exportToCSV(sampledValues, endDate) {
@@ -355,6 +455,7 @@ function loadData() {
     var allCollection = ee.ImageCollection.fromImages(listIndexFparParNdvidiff);
     var mdCollection = allCollection.map(calApar);
 
+    // showChart(mdCollection, site);
     showMap(mdCollection, dateEnd.getInfo());
     // var zStat = zonalStat(mdCollection, points, dateEnd);
 }
@@ -410,7 +511,7 @@ var dateItems = [
     { label: '3 วัน', value: 3 },
     { label: '5 วัน', value: 5 },
     { label: '7 วัน', value: 7 },
-    { label: '15 วัน', value: 15 },
+    { label: '14 วัน', value: 14 },
     { label: '30 วัน', value: 30 },
     { label: '60 วัน', value: 30 },
     { label: '120 วัน', value: 120 },
@@ -419,7 +520,7 @@ var dateItems = [
 ];
 var dateCompositeUi = ui.Select({
     items: dateItems,
-    value: 7,
+    value: 14,
     style: { width: '80%' }
 });
 leftPanel.add(dateCompositeUi);
