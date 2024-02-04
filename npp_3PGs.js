@@ -11,11 +11,10 @@ ui.root.clear();
 var map = ui.Map();
 
 var legendPanel = ui.Panel({
-    widgets: [ui.Label('leftPanel')],
     style: {
-        width: '150px',
+        width: '180px',
         padding: '8px',
-        backgroundColor: 'rgba(255, 255, 255, 0.8)'
+        backgroundColor: 'rgba(255, 255, 255, 0.9)'
     }
 })
 legendPanel.style().set({
@@ -30,7 +29,6 @@ var rightPanel = ui.Panel({
 });
 
 var leftPanel = ui.Panel({
-    widgets: [ui.Label('leftPanel')],
     style: { width: '20%' }
 });
 
@@ -106,6 +104,17 @@ function calDiffNdvi(image) {
     return ndviWithNdvidiff.select('NDVIdiff');
 }
 
+function calBM(image) {
+    // Vol =(7.25923*(NDVI^3))-(13.419*(NDVI^2))+(6.4542*(NDVI))-0.2305
+    var biomass = image.expression(
+        '7.25923 * pow(NDVI, 3) - 13.419 * pow(NDVI, 2) + 6.4542 * NDVI - 0.2305',
+        {
+            'NDVI': image.select('NDVI')
+        }
+    ).rename('BIOMASS');
+    return image.addBands(biomass)
+}
+
 function calFpar(image) {
     var fpar = image.select('NDVI').multiply(1.5).subtract(-0.1).rename('FPAR');
     return image.addBands(fpar)
@@ -133,6 +142,25 @@ function mergeBands(feature) {
     var image2 = ee.Image(feature.get('secondary'));
     var mergedImage = image1.addBands(image2);
     return mergedImage;
+}
+
+function showBmChart(mdCollection, bandArr, site) {
+    var chartBmUi = ui.Chart.image.series({
+        imageCollection: mdCollection.select(bandArr),
+        region: site,
+        reducer: ee.Reducer.mean(),
+        scale: 500,
+        xProperty: 'system:time_start'
+    });
+
+    var chartBmOptions = {
+        hAxis: { title: 'วันที่' },
+        vAxis: { title: 'เชื้อเพลิง (Kg/m^2)' },
+        curveType: 'function',
+    };
+
+    chartBmUi.setOptions(chartBmOptions);
+    rightPanel.add(chartBmUi)
 }
 
 function showChart(mdCollection, bandArr, site) {
@@ -195,10 +223,10 @@ function showLegend(indexName, visPalette) {
 }
 
 function showMinValue(mdCollection) {
-    var min = mdCollection.min();
+    var min = mdCollection.median();
 
     var minValue = min.reduceRegion({
-        reducer: ee.Reducer.min(),
+        reducer: ee.Reducer.median(),
         geometry: site,
         scale: 30,
         maxPixels: 1e9
@@ -211,6 +239,18 @@ function showMaxValue(mdCollection) {
 
     var maxValue = max.reduceRegion({
         reducer: ee.Reducer.max(),
+        geometry: site,
+        scale: 30,
+        maxPixels: 1e9
+    });
+    return maxValue
+}
+
+function showMedianValue(mdCollection) {
+    var max = mdCollection.median();
+
+    var maxValue = max.reduceRegion({
+        reducer: ee.Reducer.median(),
         geometry: site,
         scale: 30,
         maxPixels: 1e9
@@ -252,8 +292,10 @@ function showMap(mdCollection, dateEnd) {
     var cbApar = chkbApar.getValue();
     var cbGpp = chkbGpp.getValue();
     var cbNpp = chkbNpp.getValue();
+    var cbBm = chkbBm.getValue();
 
-    var bandArr = [];
+    var chartBandArr = [];
+    var chartBmArr = [];
 
     rightPanel.clear();
     legendPanel.clear();
@@ -278,7 +320,7 @@ function showMap(mdCollection, dateEnd) {
 
         map.addLayer(mdCollection.select(band).median(), vis, "NDVI", true, 0.8);
         showLegend(band, vis);
-        bandArr.push(band);
+        chartBandArr.push(band);
     }
 
     if (cbNdviDiff) {
@@ -289,9 +331,9 @@ function showMap(mdCollection, dateEnd) {
         vis.max = max.get(band).getInfo()
         vis.palette = palette.ndvi;
 
-        map.addLayer(mdCollection.select('NDVIdiff').median(), vis, "NDVIdiff", true, 0.8);
-        showLegend('NDVIdiff', vis);
-        bandArr.push('NDVIdiff');
+        map.addLayer(mdCollection.select(band).median(), vis, "NDVIdiff", true, 0.8);
+        showLegend(band, vis);
+        chartBandArr.push(band);
     }
 
     if (cbNdmi) {
@@ -302,9 +344,9 @@ function showMap(mdCollection, dateEnd) {
         vis.max = max.get(band).getInfo()
         vis.palette = palette.ndmi;
 
-        map.addLayer(mdCollection.select('NDMI').median(), vis, "NDMI", true, 0.8);
-        showLegend('NDMI', vis);
-        bandArr.push('NDMI');
+        map.addLayer(mdCollection.select(band).median(), vis, "NDMI", true, 0.8);
+        showLegend(band, vis);
+        chartBandArr.push(band);
     }
 
     if (cbFpar) {
@@ -315,9 +357,9 @@ function showMap(mdCollection, dateEnd) {
         vis.max = max.get(band).getInfo()
         vis.palette = palette.ndvi;
 
-        map.addLayer(mdCollection.select('FPAR').median(), vis, "FPAR", true, 0.8);
-        showLegend('FPAR', vis);
-        bandArr.push('FPAR');
+        map.addLayer(mdCollection.select(band).median(), vis, "FPAR", true, 0.8);
+        showLegend(band, vis);
+        chartBandArr.push(band);
     }
 
     if (cbSr) {
@@ -328,9 +370,9 @@ function showMap(mdCollection, dateEnd) {
         vis.max = max.get(band).getInfo()
         vis.palette = palette.sr;
 
-        map.addLayer(mdCollection.select('GMT_0900_DSR').median(), vis, "SR", true, 0.8);
+        map.addLayer(mdCollection.select(band).median(), vis, "SR", true, 0.8);
         showLegend('SR (W/m^2)', vis);
-        bandArr.push('GMT_0900_DSR');
+        chartBandArr.push(band);
     }
 
     if (cbPar) {
@@ -341,9 +383,9 @@ function showMap(mdCollection, dateEnd) {
         vis.max = max.get(band).getInfo()
         vis.palette = palette.ndvi;
 
-        map.addLayer(mdCollection.select('PAR').median(), vis, "PAR", true, 0.8);
-        showLegend('PAR', vis);
-        bandArr.push('PAR');
+        map.addLayer(mdCollection.select(band).median(), vis, "PAR", true, 0.8);
+        showLegend(band, vis);
+        chartBandArr.push(band);
     }
 
     if (cbApar) {
@@ -354,9 +396,9 @@ function showMap(mdCollection, dateEnd) {
         vis.max = max.get(band).getInfo()
         vis.palette = palette.ndvi;
 
-        map.addLayer(mdCollection.select('APAR').median(), vis, "APAR", true, 0.8);
-        showLegend('APAR', vis);
-        bandArr.push('APAR');
+        map.addLayer(mdCollection.select(band).median(), vis, "APAR", true, 0.8);
+        showLegend(band, vis);
+        chartBandArr.push(band);
     }
 
     if (cbGpp) {
@@ -367,9 +409,9 @@ function showMap(mdCollection, dateEnd) {
         vis.max = max.get(band).getInfo()
         vis.palette = palette.bm;
 
-        map.addLayer(mdCollection.select('GPP').median(), vis, "GPP", true, 0.8);
-        showLegend('GPP (Kg/m^2)', vis);
-        bandArr.push('GPP');
+        map.addLayer(mdCollection.select(band).median(), vis, "GPP", true, 0.8);
+        showLegend(band + ' (Kg/m^2)', vis);
+        chartBmArr.push(band);
     }
 
     if (cbNpp) {
@@ -380,15 +422,37 @@ function showMap(mdCollection, dateEnd) {
         vis.max = max.get(band).getInfo()
         vis.palette = palette.bm;
 
-        map.addLayer(mdCollection.select('NPP').median(), vis, "NPP ", true, 0.8);
-        showLegend('NPP (Kg/m^2)', vis);
-        bandArr.push('NPP');
+        map.addLayer(mdCollection.select(band).median(), vis, "NPP ", true, 0.8);
+        showLegend('ปริมาณเชื้อเพลิงเฉลี่ยวิธี NPP (Kg/m^2)', vis);
+        chartBmArr.push(band);
     }
 
-    showChart(mdCollection, bandArr, site);
+    if (cbBm) {
+        band = 'BIOMASS';
+        min = showMinValue(mdCollection.select(band));
+        max = showMaxValue(mdCollection.select(band));
+        vis.min = min.get(band).getInfo()
+        vis.max = max.get(band).getInfo()
+        vis.palette = palette.bm;
+
+        map.addLayer(mdCollection.select(band).median(), vis, "BIOMASS ", true, 0.8);
+        showLegend('ปริมาณเชื้อเพลิงเฉลี่ยวิธี Linear regression (Kg/m^2)', vis);
+        chartBmArr.push(band);
+    }
+    showBmChart(mdCollection, chartBmArr, site);
+    showChart(mdCollection, chartBandArr, site);
+
+    map.onClick(function (e) {
+        var ptn = ee.Geometry.Point(e.lon, e.lat);
+
+        rightPanel.clear();
+
+        showBmChart(mdCollection, chartBmArr, ptn);
+        showChart(mdCollection, chartBandArr, ptn);
+    });
 
     var siteLine = site.map(convertPolygonToLine);
-    map.addLayer(siteLine, visPolygonBorder, "site", true);
+    map.addLayer(siteLine, visPolygonBorder, "ป่าชุมชนปากทับ", true);
 }
 
 function exportToCSV(sampledValues, endDate) {
@@ -435,8 +499,11 @@ function loadData() {
     // NDVI, NDMI calculation
     var mdIndex = mdProj.map(calIndex);
 
+    // TUM Biomass equation
+    var mdBiomass = mdIndex.map(calBM);
+
     // FPAR calculation
-    var mdIndexFpar = mdIndex.map(calFpar);
+    var mdIndexFpar = mdBiomass.map(calFpar);
 
     // PAR calculation
     var mcdPar = mcdProj.map(calPar);
@@ -460,6 +527,24 @@ function loadData() {
     // var zStat = zonalStat(mdCollection, points, dateEnd);
 }
 
+var txtTitle = ui.Label({
+    value: 'ติดตามปริมาณเชื้อเพลิง',
+    style: {
+        margin: '4px 8px',
+        fontSize: '20px',
+        fontWeight: 1000
+    }
+});
+leftPanel.add(txtTitle);
+
+var txtSubTitle = ui.Label({
+    value: 'คำนวณปริมาณเชื้อเพลิงด้วยวิธี 3PGs จากข้อมูลรายวันของดาวเทียม TERRA/AQUA MODIS',
+    style: {
+        margin: '4px 8px',
+    }
+});
+leftPanel.add(txtSubTitle);
+
 var txtCloudSlideUi = ui.Label({
     value: 'เลือก % การปกคลุมของเมฆ',
     style: {
@@ -468,7 +553,6 @@ var txtCloudSlideUi = ui.Label({
         fontWeight: 1000
     }
 });
-
 leftPanel.add(txtCloudSlideUi);
 
 var cloudSliderUi = ui.Slider({
@@ -525,8 +609,30 @@ var dateCompositeUi = ui.Select({
 });
 leftPanel.add(dateCompositeUi);
 
+var txtBiomassUi = ui.Label({
+    value: 'ปริมาณเชื้อเพลิงแต่ละวิธี',
+    style: {
+        margin: '4px 8px',
+        fontSize: '18px',
+        fontWeight: 1000
+    }
+});
+leftPanel.add(txtBiomassUi);
+
+var chkbNpp = ui.Checkbox({
+    label: 'วิธี 3PGs (Net Primary Productivity: NPP)',
+    value: true
+})
+leftPanel.add(chkbNpp);
+
+var chkbBm = ui.Checkbox({
+    label: 'วิธี Linear regression',
+    value: true
+})
+leftPanel.add(chkbBm);
+
 var txtDateCompositeUi = ui.Label({
-    value: 'เลือกชั้นข้อมูลที่ต้องการแสดงผล',
+    value: 'ชั้นข้อมูลอื่นๆที่ใช้ในการคำนวณปริมาณเชื้อเพลิง',
     style: {
         margin: '4px 8px',
         fontSize: '18px',
@@ -583,12 +689,6 @@ var chkbGpp = ui.Checkbox({
 })
 leftPanel.add(chkbGpp);
 
-var chkbNpp = ui.Checkbox({
-    label: 'Net Primary Productivity: NPP',
-    value: true
-})
-leftPanel.add(chkbNpp);
-
 cloudSliderUi.onChange(loadData);
 dateSliderUi.onChange(loadData);
 dateCompositeUi.onChange(loadData);
@@ -602,7 +702,7 @@ chkbPar.onChange(loadData);
 chkbApar.onChange(loadData);
 chkbGpp.onChange(loadData);
 chkbNpp.onChange(loadData);
-
+chkbBm.onChange(loadData);
 // field collection date
 var dateArray = ['2023-11-15', '2023-11-20', '2023-11-25',
     '2023-11-30', '2023-12-05', '2023-12-10',
@@ -615,3 +715,129 @@ loadData();
 //     init(i);
 // });
 
+var mapGrayscale = [
+    {
+        "featureType": "administrative",
+        "elementType": "all",
+        "stylers": [
+            {
+                "saturation": "-100"
+            }
+        ]
+    },
+    {
+        "featureType": "administrative.province",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "off"
+            }
+        ]
+    },
+    {
+        "featureType": "landscape",
+        "elementType": "all",
+        "stylers": [
+            {
+                "saturation": -100
+            },
+            {
+                "lightness": 65
+            },
+            {
+                "visibility": "on"
+            }
+        ]
+    },
+    {
+        "featureType": "poi",
+        "elementType": "all",
+        "stylers": [
+            {
+                "saturation": -100
+            },
+            {
+                "lightness": "50"
+            },
+            {
+                "visibility": "simplified"
+            }
+        ]
+    },
+    {
+        "featureType": "road",
+        "elementType": "all",
+        "stylers": [
+            {
+                "saturation": "-100"
+            }
+        ]
+    },
+    {
+        "featureType": "road.highway",
+        "elementType": "all",
+        "stylers": [
+            {
+                "visibility": "simplified"
+            }
+        ]
+    },
+    {
+        "featureType": "road.arterial",
+        "elementType": "all",
+        "stylers": [
+            {
+                "lightness": "30"
+            }
+        ]
+    },
+    {
+        "featureType": "road.local",
+        "elementType": "all",
+        "stylers": [
+            {
+                "lightness": "40"
+            }
+        ]
+    },
+    {
+        "featureType": "transit",
+        "elementType": "all",
+        "stylers": [
+            {
+                "saturation": -100
+            },
+            {
+                "visibility": "simplified"
+            }
+        ]
+    },
+    {
+        "featureType": "water",
+        "elementType": "geometry",
+        "stylers": [
+            {
+                "hue": "#ffff00"
+            },
+            {
+                "lightness": -25
+            },
+            {
+                "saturation": -97
+            }
+        ]
+    },
+    {
+        "featureType": "water",
+        "elementType": "labels",
+        "stylers": [
+            {
+                "lightness": -25
+            },
+            {
+                "saturation": -100
+            }
+        ]
+    }
+]
+map.setOptions('Map Grayscale', { 'Map Grayscale': mapGrayscale })
