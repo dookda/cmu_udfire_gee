@@ -6,6 +6,92 @@ var site = ee.Geometry.Polygon(
     [101.42066440702139, 19.708677575751913]]]);
 
 
+var mapGrayscale = [
+    {
+        "featureType": "administrative",
+        "elementType": "all",
+        "stylers": [{
+            "saturation": "-100"
+        }]
+    }, {
+        "featureType": "administrative.province",
+        "elementType": "all",
+        "stylers": [{
+            "visibility": "off"
+        }]
+    }, {
+        "featureType": "landscape",
+        "elementType": "all",
+        "stylers": [{
+            "saturation": -100
+        }, {
+            "lightness": 65
+        }, {
+            "visibility": "on"
+        }]
+    }, {
+        "featureType": "poi",
+        "elementType": "all",
+        "stylers": [{
+            "saturation": -100
+        }, {
+            "lightness": "50"
+        }, {
+            "visibility": "simplified"
+        }]
+    }, {
+        "featureType": "road",
+        "elementType": "all",
+        "stylers": [{
+            "saturation": "-100"
+        }]
+    }, {
+        "featureType": "road.highway",
+        "elementType": "all",
+        "stylers": [{
+            "visibility": "simplified"
+        }]
+    }, {
+        "featureType": "road.arterial",
+        "elementType": "all",
+        "stylers": [{
+            "lightness": "30"
+        }]
+    }, {
+        "featureType": "road.local",
+        "elementType": "all",
+        "stylers": [{
+            "lightness": "40"
+        }]
+    }, {
+        "featureType": "transit",
+        "elementType": "all",
+        "stylers": [{
+            "saturation": -100
+        }, {
+            "visibility": "simplified"
+        }]
+    }, {
+        "featureType": "water",
+        "elementType": "geometry",
+        "stylers": [{
+            "hue": "#ffff00"
+        }, {
+            "lightness": -25
+        }, {
+            "saturation": -97
+        }]
+    }, {
+        "featureType": "water",
+        "elementType": "labels",
+        "stylers": [{
+            "lightness": -25
+        }, {
+            "saturation": -100
+        }]
+    }
+]
+
 var map = ui.Map();
 
 var legendPanel = ui.Panel({
@@ -19,7 +105,6 @@ legendPanel.style().set({
     position: 'bottom-left',
     margin: '0px 0px 30px 30px'
 });
-
 
 var chartPanel = ui.Panel({
     // widgets: [ui.Label('bottomPanel')],
@@ -47,12 +132,11 @@ var mainPanel = ui.SplitPanel({
 
 ui.root.add(mainPanel);
 
-function getMonthlySum(dataset, year, month, bandName) {
+function monthlySum(dataset, year, month, bandName) {
     var start = ee.Date.fromYMD(year, month, 1);
     var end = start.advance(1, 'month');
 
-    var mntCollection = dataset.filterDate(start, end);
-    // print(mntCollection)
+    var mntCollection = dataset.filter(ee.Filter.date(start, end));
     var mntSum = mntCollection.reduce(ee.Reducer.sum());
     var a = mntSum.rename(bandName)
     var b = a.set('system:time_start', start.millis());
@@ -60,28 +144,108 @@ function getMonthlySum(dataset, year, month, bandName) {
     return b;
 }
 
-function getDataset(yearStart, yearEnd) {
-    print(ee.Number(yearStart).getInfo(), yearEnd)
-    var chirps = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY').select('precipitation')
-    var mod16a2 = ee.ImageCollection('MODIS/006/MOD16A2').select('ET')
+function getByMonth(collection, bandName, yStart, yEnd) {
+    var startDate = ee.Date.fromYMD(yStart, 1, 1);
+    var endDate = ee.Date.fromYMD(yEnd, 1, 1);
 
-    var years = ee.List.sequence(ee.Number(yearStart), ee.Number(yearEnd));
+    var collectionFiltered = collection.filter(ee.Filter.date(startDate, endDate));
+
+    var years = ee.List.sequence(yStart, yEnd);
     var months = ee.List.sequence(1, 12);
 
-    var rainMonth = years.map(function (y) {
+    var dataMonth = years.map(function (y) {
         return months.map(function (m) {
-            return getMonthlySum(chirps, y, m, 'precipitation');
+            return getMonthlySum(collectionFiltered, y, m, bandName);
         });
     }).flatten();
 
-    var evapMonth = years.map(function (y) {
-        return months.map(function (m) {
-            return getMonthlySum(mod16a2, y, m, 'ET');
-        });
-    }).flatten();
+    return ee.ImageCollection.fromImages(dataMonth);
+}
 
-    var rain = ee.ImageCollection.fromImages(rainMonth);
-    var evap = ee.ImageCollection.fromImages(evapMonth);
+function getBy8DaySum(collection, bandName, yStart, yEnd) {
+    var startDate = ee.Date.fromYMD(yStart, 1, 1);
+    var endDate = ee.Date.fromYMD(yEnd, 1, 1);
+
+    var collectionFiltered = collection.filter(ee.Filter.date(startDate, endDate))
+
+    var nPeriods = endDate.difference(startDate, 'day').divide(8).ceil();
+
+    var startDates = ee.List.sequence(0, nPeriods.subtract(1)).map(function (n) {
+        return startDate.advance(ee.Number(n).multiply(8), 'day');
+    });
+
+    print(startDates)
+
+    var data8Day = startDates.map(function (date) {
+        date = ee.Date(date);
+        var periodEnd = date.advance(8, 'day');
+        var periodCollection = collectionFiltered.filterDate(date, periodEnd);
+        return periodCollection.reduce(ee.Reducer.sum()).rename(bandName).set('system:time_start', date.millis());
+    })
+
+    return ee.ImageCollection.fromImages(data8Day);
+}
+
+function getBy8DayModisSum(collection, bandName, dateList) {
+
+    var startDates = ee.List(dateList).map(function (dateStr) {
+        return ee.Date(dateStr);
+    });
+
+    var data8Day = startDates.map(function (date) {
+        date = ee.Date(date);
+        var periodEnd = date.advance(8, 'day');
+        var periodCollection = collection.filterDate(date, periodEnd);
+        return periodCollection.reduce(ee.Reducer.sum()).rename(bandName).set('system:time_start', date.millis());
+    })
+
+    return ee.ImageCollection.fromImages(data8Day);
+}
+
+function resize(image) {
+    return image.clip(site).reproject({ crs: 'EPSG:32647', scale: 500 })
+}
+
+function getDataset(yearStart, yearEnd) {
+    var yStart = ee.Number(yearStart).getInfo();
+    var yEnd = ee.Number(yearEnd).getInfo();
+
+    var chirps = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY').select('precipitation');
+    var mod16a2 = ee.ImageCollection('MODIS/061/MOD16A2').select('ET');
+
+    var startDate = ee.Date.fromYMD(yStart, 1, 1);
+    var endDate = ee.Date.fromYMD(yEnd, 1, 1);
+
+    var collectionFiltered = mod16a2.filter(ee.Filter.date(startDate, endDate));
+
+    var dateList = collectionFiltered.map(function (image) {
+        return ee.Feature(null, { 'date': ee.Date(image.get('system:time_start')).format('YYYY-MM-dd') });
+    });
+
+    var dates = dateList.aggregate_array('date');
+
+    var GCN250_Average = ee.Image("users/jaafarhadi/GCN250/GCN250Average").select('b1').rename('average');
+    var GCN250_Dry = ee.Image("users/jaafarhadi/GCN250/GCN250Dry").select('b1').rename('dry');
+    var GCN250_Wet = ee.Image("users/jaafarhadi/GCN250/GCN250Wet").select('b1').rename('wet');
+
+    // visualize the Dry GCN dataset
+    var vis = {
+        min: 40,
+        max: 75,
+        palette: ['Red', 'SandyBrown', 'Yellow', 'LimeGreen', 'Blue', 'DarkBlue']
+    };
+
+    // var rainCollection = getByMonth(chirps, 'precipitation', yStart, yEnd);
+    // var evapCollection = getByMonth(mod16a2, 'ET', yStart, yEnd);
+
+    // var rainCollection = get8DaySum(chirps, 'precipitation', yStart, yEnd);
+    // var evapCollection = get8DaySum(mod16a2, 'ET', yStart, yEnd);
+
+    var rainCollection = getBy8DayModisSum(chirps, 'precipitation', dates);
+    var evapCollection = getBy8DayModisSum(mod16a2, 'ET', dates);
+
+    var rain = rainCollection.map(resize);
+    var evap = evapCollection.map(resize);
 
     return { rain: rain, evap: evap }
 }
@@ -126,18 +290,20 @@ function showChart(dataset, region) {
     chartPanel.add(chartUi);
 }
 
-function showMap(dataset, band) {
-    // var precipitation = dataset.select('precipitation');
-    // var precipitationVis = {
-    //     min: 1,
-    //     max: 1500,
-    //     palette: ['001137', '0aab1e', 'e7eb05', 'ff4a2d', 'e90000'],
-    // };
+function safeSelectBand(image) {
+    var selected = image.select([band]);
+    var bandPresent = image.bandNames().contains(band);
+    return ee.Image(ee.Algorithms.If(
+        bandPresent,
+        selected,
+        ee.Image(0).rename(band).updateMask(0)
+    ));
+}
 
-    var rainSum = dataset.sum();
-    var min = getMin(rainSum);
-    var max = getMax(rainSum);
-
+function showMap(ds, band) {
+    var sumCollection = ds.select(band).sum();
+    var min = getMin(sumCollection);
+    var max = getMax(sumCollection);
 
     var visParam = {
         min: min.get(band).getInfo(),
@@ -145,16 +311,7 @@ function showMap(dataset, band) {
         palette: ['001137', '0aab1e', 'e7eb05', 'ff4a2d', 'e90000'],
     }
 
-    // var lib = require('users/sakdahomhuan/gg_engine:cmu_grayscale');
-    // map.setOptions('Map Grayscale', { 'Map Grayscale': lib.mapGrayscale });
-    map.clear();
-    map.centerObject(site);
-    map.addLayer(rainSum, visParam, 'Precipitation');
-
-}
-
-function resize(image) {
-    return image.clip(site).reproject({ crs: 'EPSG:32647', scale: 500 })
+    map.addLayer(sumCollection, visParam, band);
 }
 
 function mergeBands(feature) {
@@ -172,27 +329,31 @@ function combineImage(rain, evap) {
 
     var join = ee.Join.inner();
     var joinSet = join.apply(rain, evap, filter);
-    print(joinSet);
-    var merge = joinSet.map(mergeBands);
-    print(merge);
+
+    var mergedCollection = joinSet.map(function (feature) {
+        return mergeBands(feature);
+    });
+
+    return ee.ImageCollection(mergedCollection);
 }
 
 function init() {
     var yearStart = dateStartUi.getValue();
     var yearEnd = dateEndUi.getValue();
 
-    var dataset = getDataset(parseInt(yearStart), parseInt(yearEnd));
+    var rawDataset = getDataset(parseInt(yearStart), parseInt(yearEnd));
+    var collection = combineImage(rawDataset.rain, rawDataset.evap);
 
-    var band = 'precipitation';
-    var rainClip = dataset.rain.select(band).map(resize);
+    map.clear();
+    // var lib = require('users/sakdahomhuan/gg_engine:cmu_grayscale');
+    // map.setOptions('Map Grayscale', { 'Map Grayscale': lib.mapGrayscale });
 
-    var rain = dataset.rain.map(resize);
-    var evap = dataset.evap.map(resize);
+    map.centerObject(site, 8);
+    map.setOptions('Map Grayscale', { 'Map Grayscale': mapGrayscale });
 
-    combineImage(rain, evap)
-
-    showMap(rainClip, band);
-    showChart(rainClip, site)
+    showMap(collection, 'precipitation');
+    showMap(collection, 'ET');
+    showChart(collection, site)
 }
 
 var dateStartUi = ui.Textbox({
@@ -214,5 +375,7 @@ leftPanel.add(submitBtn)
 
 init();
 submitBtn.onClick(init)
+
+
 
 
