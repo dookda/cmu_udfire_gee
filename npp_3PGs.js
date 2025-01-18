@@ -226,7 +226,7 @@ function showMinValue(mdCollection) {
     var min = mdCollection.median();
 
     var minValue = min.reduceRegion({
-        reducer: ee.Reducer.median(),
+        reducer: ee.Reducer.min(),
         geometry: site,
         scale: 30,
         maxPixels: 1e9
@@ -545,6 +545,27 @@ var txtSubTitle = ui.Label({
 });
 leftPanel.add(txtSubTitle);
 
+var siteSelectTitle = ui.Label({
+    value: "เลือกพื้นที่",
+    style: {
+        margin: '4px 8px',
+        fontSize: '18px',
+        fontWeight: 1000
+    }
+})
+leftPanel.add(siteSelectTitle);
+
+var siteItems = [
+    { label: "ปากทับ อุตรดิตถ์", value: "ud" },
+    { label: "แม่ทาเหนือ เชียงใหม่", value: "mt" },]
+
+var siteSelectUi = ui.Select({
+    items: siteItems,
+    value: 'ud',
+    style: { width: '80%' }
+})
+leftPanel.add(siteSelectUi);
+
 var txtCloudSlideUi = ui.Label({
     value: 'เลือก % การปกคลุมของเมฆ',
     style: {
@@ -690,6 +711,7 @@ var chkbGpp = ui.Checkbox({
 leftPanel.add(chkbGpp);
 
 cloudSliderUi.onChange(loadData);
+siteSelectUi.onChange(loadData);
 dateSliderUi.onChange(loadData);
 dateCompositeUi.onChange(loadData);
 
