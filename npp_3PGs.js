@@ -25,15 +25,23 @@ ui.root.add(mainPanel);
 // Helper functions (most remain unchanged)
 //=============================================================================
 function getDataset(dateEnd, dateComposite) {
+
     var d = ee.Date(dateEnd);
     var dateStart = d.advance(dateComposite, 'day').format('yyyy-MM-dd');
 
+    print(dateStart, dateEnd);
+    var dStart = ee.Date('2023-11-02')
+    var dEnd = ee.Date('2023-11-16')
+
     var mdData = ee.ImageCollection('MODIS/061/MOD09GA')
-        .filter(ee.Filter.date(dateStart, dateEnd));
+        .filter(ee.Filter.date(dStart, dEnd));
+    print(mdData);
 
     var mcdData = ee.ImageCollection('MODIS/062/MCD18A1')
+        // .filter(ee.Filter.date('2000-01-01', '2001-01-31'))
         .filter(ee.Filter.date(dateStart, dateEnd))
-        .select('GMT_0900_DSR');
+        .select('GMT_0600_DSR');
+    print(mcdData);
 
     var firms = ee.ImageCollection("FIRMS")
         .filter(ee.Filter.date(dateStart, dateEnd))
@@ -87,7 +95,7 @@ function calFpar(image) {
 }
 
 function calPar(image) {
-    var dsr24hr = image.select('GMT_0900_DSR').multiply(18000).divide(1000000);
+    var dsr24hr = image.select('GMT_0600_DSR').multiply(18000).divide(1000000);
     var par = dsr24hr.multiply(0.45).rename('PAR');
     return image.addBands(par.copyProperties(image, ['system:time_start']));
 }
@@ -236,9 +244,12 @@ function showMap(mdCollection, dateEnd) {
             var currentBand = layer.band;
             var min = showMinValue(mdCollection.select(currentBand));
             var max = showMaxValue(mdCollection.select(currentBand));
+            print(min);
+            print(max);
             var vis = {
-                min: min.get(currentBand).getInfo(),
-                max: max.get(currentBand).getInfo(),
+                // min: min.get(currentBand).getInfo(),
+                min: 0,
+                max: 7, //max.get(currentBand).getInfo(),
                 palette: layer.palette
             };
             map.addLayer(mdCollection.select(currentBand).median(), vis, layer.label, true, 0.8);
@@ -325,13 +336,13 @@ function loadData() {
     var ndviList = mdNdvi.toList(mdNdvi.size());
     var ndviDiff = ndviList.slice(1).zip(ndviList.slice(0, -1)).map(calDiffNdvi);
 
-    var mdNdvi = mdIndex.select('NDVI');
+    mdNdvi = mdIndex.select('NDVI');
     var ndviCount = mdNdvi.size();
     print('NDVI image count:', ndviCount);
 
-    var ndviDiff;
+    ndviDiff;
     if (ndviCount.gt(1)) {
-        var ndviList = mdNdvi.toList(ndviCount);
+        ndviList = mdNdvi.toList(ndviCount);
         ndviDiff = ndviList.slice(1).zip(ndviList.slice(0, -1)).map(calDiffNdvi);
     } else {
         print('Not enough images to calculate NDVI difference');
