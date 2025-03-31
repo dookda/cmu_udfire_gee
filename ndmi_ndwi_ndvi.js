@@ -183,10 +183,11 @@ var years = [
     { label: 'ปี 2022', value: '2022' },
     { label: 'ปี 2023', value: '2023' },
     { label: 'ปี 2024', value: '2024' },
+    { label: 'ปี 2025', value: '2025' },
 ];
 var selectYear = ui.Select({
     items: years,
-    value: '2022'
+    value: '2024'
 });
 layerPanel.add(ui.Label({ value: "เลือกปี" }));
 layerPanel.add(selectYear);
