@@ -2,10 +2,8 @@
 var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/paktab");
 var mt = ee.FeatureCollection("projects/ee-sakda-451407/assets/meatha_n");
 
-// Global variable to hold the current study area.
-var currentSite = ud;  // Default site is 'ud'.
+var currentSite = ud;
 
-// Initialize UI
 ui.root.clear();
 var map = ui.Map();
 
@@ -18,7 +16,7 @@ var legendPanel = ui.Panel({
 });
 legendPanel.style().set({ position: 'bottom-left', margin: '0px 0px 30px 30px' });
 
-var rightPanel = ui.Panel({ widgets: [ui.Label('สัญลักษณ์')], style: { width: '30%' } });
+var rightPanel = ui.Panel({ widgets: [ui.Label('')], style: { width: '30%' } });
 var leftPanel = ui.Panel({ style: { width: '20%' } });
 var midPanel = ui.SplitPanel({ firstPanel: map, secondPanel: rightPanel, orientation: 'horizontal' });
 var mainPanel = ui.SplitPanel({ firstPanel: leftPanel, secondPanel: ui.Panel(midPanel), orientation: 'horizontal' });
@@ -31,55 +29,147 @@ var chartPanel = ui.Panel({
     // style: { width: '30%' }
 });
 
-rightPanel.add(chartPanel);
+map.setOptions('SATELLITE');
+map.setControlVisibility(true);
 map.add(legendPanel);
+
+rightPanel.add(chartPanel);
 ui.root.add(mainPanel);
 
-var test = ui.Label({
-    value: 'test Daily Charts',
-    style: { fontSize: '20px', fontWeight: '800' }
-})
+function reProject(image) {
+    return image.reproject({ crs: "EPSG:32647", scale: 500 });
+}
 
-chartPanel.add(test);
-
-// Function to compute NDVI and add it as a new band.
-function compute_ndvi(image) {
-    var ndvi = image.normalizedDifference(['B8', 'B4'])
-        .rename('NDVI')
-        .clip(currentSite);
+function computeNdvi(image) {
+    var ndvi = image.normalizedDifference(['sur_refl_b02', 'sur_refl_b01'])
+        .rename('NDVI');
     return image.addBands(ndvi);
 }
 
-function compute_ndmi(image) {
-    var ndmi = image.normalizedDifference(['B8', 'B11'])
-        .rename('NDMI')
-        .clip(currentSite);
-    return image.addBands(ndmi);
-}
+function computeBiomass(image) {
+    var mcdData = ee.ImageCollection('MODIS/062/MCD18A1')
+        .filter(ee.Filter.date('2023-11-01', '2024-03-30'))
+        .filterBounds(currentSite)
+        .select('GMT_0900_DSR')
+        .median()
+    // FPAR: Fraction of absorbed photosynthetically active radiation.
+    // (Note: subtract(-0.1) is equivalent to adding 0.1)
+    var fpar = image.select('NDVI').multiply(1.5).add(0.1).rename('FPAR');
 
-function compute_ndwi(image) {
-    var ndwi = image.normalizedDifference(['B3', 'B8'])
-        .rename('NDWI')
-        .clip(currentSite);
-    return image.addBands(ndwi);
+    // dsr24hr: Converts daily solar radiation to a 24-hour value.
+    var dsr24hr = mcdData.select('GMT_0900_DSR')
+        .multiply(18000)
+        .divide(1000000)
+        .rename('DSR24hr');
+
+    // PAR: Photosynthetically active radiation (assumes 45% of DSR is PAR).
+    var par = dsr24hr.multiply(0.45).rename('PAR');
+
+    // APAR: Absorbed PAR is the product of FPAR and PAR.
+    var apar = fpar.multiply(par).rename('APAR');
+
+    // GPP: Gross primary production (conversion factor 1.8).
+    var gpp = apar.multiply(1.8).rename('GPP');
+
+    // NPP: Net primary production (45% of GPP).
+    var npp = gpp.multiply(0.45).rename('NPP');
+
+    // Biomass: carbon To Biomass Factor = 2.5;
+    var bm = npp.multiply(2.5).rename('BM');
+
+    // Biomass TUM equation: Vol = (7.25923*(NDVI^3)) - (13.419*(NDVI^2)) + (6.4542*(NDVI)) - 0.2305
+    var bmt = image.expression(
+        '7.25923 * pow(NDVI, 3) - 13.419 * pow(NDVI, 2) + 6.4542 * NDVI - 0.2305',
+        { 'NDVI': image.select('NDVI') }
+    ).rename('BMT');
+
+    // Add the computed bands to the image.
+    return image.addBands([fpar, dsr24hr, par, apar, gpp, npp, bm, bmt]);
 }
 
 function getDataset(dateEnd, dateComposite) {
     var d = ee.Date(dateEnd);
     var dateStart = d.advance(-dateComposite, 'day').format('yyyy-MM-dd');
 
-    // Create a composite from MOD09GA
-    var mdData = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+    var mdData = ee.ImageCollection('MODIS/061/MOD09GA')
         .filter(ee.Filter.date(dateStart, dateEnd))
         .filterBounds(currentSite)
-    // .map(compute_ndvi)
-    // .map(compute_ndmi)
-    // .map(compute_ndwi)
-    // .select(['NDVI', 'NDMI', 'NDWI'])
-
-    // var stackedImage = mdData.addBands(mcdData);
+        .map(reProject)
+        .map(computeNdvi)
+        .map(computeBiomass)
+        .select(['sur_refl_b02', 'sur_refl_b01', 'NDVI', 'FPAR', 'DSR24hr', 'PAR', 'APAR', 'GPP', 'NPP', 'BM', 'BMT'])
+    // .median()
+    // .clip(currentSite);
 
     return mdData;
+}
+
+
+function createDateCharts(ndviCollection, bmCollection, bmtCollection) {
+    chartPanel.clear();
+    function computeDailyMean(collection, bandName) {
+        var collectionWithDate = collection.map(function (image) {
+            var dateStr = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd');
+            return image.set('date', dateStr);
+        });
+        var distinctDates = collectionWithDate.aggregate_array('date').distinct();
+        var dailyFeatures = distinctDates.map(function (dateStr) {
+            dateStr = ee.String(dateStr);
+            var dailyImages = collectionWithDate.filter(ee.Filter.eq('date', dateStr));
+            var dailyMean = ee.Number(
+                dailyImages.mean().reduceRegion({
+                    reducer: ee.Reducer.mean(),
+                    geometry: currentSite,
+                    scale: 10,
+                    bestEffort: true
+                }).get(bandName)
+            );
+            return ee.Feature(null, { date: dateStr, mean: dailyMean });
+        });
+        return ee.FeatureCollection(dailyFeatures).sort('date');
+    }
+
+    var ndviDaily = computeDailyMean(ndviCollection, 'NDVI');
+    var bmDaily = computeDailyMean(bmCollection, 'BM');
+    var bmtDaily = computeDailyMean(bmtCollection, 'BMT');
+
+    var ndviChart = ui.Chart.feature.byFeature(ndviDaily, 'date', 'mean')
+        .setOptions({
+            title: 'NDVI',
+            hAxis: {
+                title: 'Date',
+                slantedText: true,
+                slantedTextAngle: 90
+            },
+            vAxis: { title: 'NDVI' }
+        });
+
+    var bmChart = ui.Chart.feature.byFeature(bmDaily, 'date', 'mean')
+        .setOptions({
+            title: 'Biomass 3PGs',
+            hAxis: {
+                title: 'Date',
+                slantedText: true,
+                slantedTextAngle: 90
+            },
+            vAxis: { title: 'Biomass (kg/m²)' }
+        });
+
+    var bmtChart = ui.Chart.feature.byFeature(bmtDaily, 'date', 'mean')
+        .setOptions({
+            title: 'Biomas (Parinwat & Sakda Equation)',
+            hAxis: {
+                title: 'Date',
+                slantedText: true,
+                slantedTextAngle: 90
+            },
+            vAxis: { title: 'Biomass (kg/m²)' }
+        });
+
+    // Add charts to the chart panel.
+    chartPanel.add(ndviChart);
+    chartPanel.add(bmChart);
+    chartPanel.add(bmtChart);
 }
 
 function getGeom(coord) {
@@ -105,75 +195,7 @@ function makeColorBarParams(palette) {
     };
 }
 
-function createDateCharts(ndmiCollection, ndwiCollection, ndviCollection) {
-    chartPanel.clear();
-    function computeDailyMean(collection, bandName) {
-        var collectionWithDate = collection.map(function (image) {
-            var dateStr = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd');
-            return image.set('date', dateStr);
-        });
-        var distinctDates = collectionWithDate.aggregate_array('date').distinct();
-        var dailyFeatures = distinctDates.map(function (dateStr) {
-            dateStr = ee.String(dateStr);
-            var dailyImages = collectionWithDate.filter(ee.Filter.eq('date', dateStr));
-            var dailyMean = ee.Number(
-                dailyImages.mean().reduceRegion({
-                    reducer: ee.Reducer.mean(),
-                    geometry: currentSite,
-                    scale: 10,
-                    bestEffort: true
-                }).get(bandName)
-            );
-            return ee.Feature(null, { date: dateStr, mean: dailyMean });
-        });
-        return ee.FeatureCollection(dailyFeatures).sort('date');
-    }
-
-    var ndmiDaily = computeDailyMean(ndmiCollection, 'NDMI');
-    var ndwiDaily = computeDailyMean(ndwiCollection, 'NDWI');
-    var ndviDaily = computeDailyMean(ndviCollection, 'NDVI');
-
-    var ndmiChart = ui.Chart.feature.byFeature(ndmiDaily, 'date', 'mean')
-        .setOptions({
-            title: 'Daily NDMI',
-            hAxis: {
-                title: 'Date',
-                slantedText: true,
-                slantedTextAngle: 90
-            },
-            vAxis: { title: 'NDMI' }
-        });
-
-    var ndwiChart = ui.Chart.feature.byFeature(ndwiDaily, 'date', 'mean')
-        .setOptions({
-            title: 'Daily NDWI',
-            hAxis: {
-                title: 'Date',
-                slantedText: true,
-                slantedTextAngle: 90
-            },
-            vAxis: { title: 'NDWI' }
-        });
-
-    var ndviChart = ui.Chart.feature.byFeature(ndviDaily, 'date', 'mean')
-        .setOptions({
-            title: 'Daily NDVI',
-            hAxis: {
-                title: 'Date',
-                slantedText: true,
-                slantedTextAngle: 90
-            },
-            vAxis: { title: 'NDVI' }
-        });
-
-    // Add charts to the chart panel.
-    chartPanel.add(ndmiChart);
-    chartPanel.add(ndwiChart);
-    chartPanel.add(ndviChart);
-}
-
 function showLegend(indexName, visPalette) {
-    // Clear previous legend items.
     var legendTitle = ui.Label({
         value: indexName,
         style: {
@@ -184,8 +206,13 @@ function showLegend(indexName, visPalette) {
     var colorBar = ui.Thumbnail({
         image: ee.Image.pixelLonLat().select(0).int(),
         params: makeColorBarParams(visPalette.palette),
-        style: { stretch: 'horizontal', margin: '0px 8px', maxHeight: '24px' }
+        style: {
+            stretch: 'horizontal',
+            margin: '0px 8px',
+            maxHeight: '24px'
+        }
     });
+
     var legendLabels = ui.Panel({
         widgets: [
             ui.Label(visPalette.min.toFixed(1), {
@@ -215,28 +242,28 @@ function showLegend(indexName, visPalette) {
 
 var palette = {
     ndvi: ['d7191c', 'fdae61', 'ffffbf', 'a6d96a', '1a9641'],
-    ndmi: ['e66101', 'fdb863', 'f7f7f7', 'b2abd2', '5e3c99'],
-    ndwi: ['d01c8b', 'f1b6da', 'f7f7f7', 'b8e186', '4dac26'],
+    ndmi: ['DCF2F1', '7FC7D9', '365486', '0F1035'],
     sr: ['F3EDC8', 'EAD196', 'BF3131', '7D0A0A'],
-    bm: ['43766C', 'F8FAE5', 'B19470', '76453B'],
+    bm: ['5e3c99', 'b2abd2', 'f7f7f7', 'fdb863', 'e66101']
 };
 
 var visPolygonBorder = { color: 'red', width: 2 };
-
 function updateMap(dateEnd) {
-    // Clear previous map layers.
     map.layers().reset();
     legendPanel.clear();
-    var dataset = getDataset(dateEnd, 30);
 
-    var ndvi_imgs = dataset.map(compute_ndvi);
-    var ndvi_imgs_sel = ndvi_imgs.select('NDVI');
-    var ndviStats = ndvi_imgs_sel.median().reduceRegion({
+    var dataset = getDataset(dateEnd, 30);
+    // print('Dataset:', dataset);
+
+    var ndviCollection = dataset.select('NDVI');
+    var ndviClipped = ndviCollection.median().clip(currentSite);
+    var ndviStats = ndviClipped.reduceRegion({
         reducer: ee.Reducer.minMax(),
         geometry: currentSite,
         scale: 500,
         bestEffort: true
     });
+
     ndviStats.evaluate(function (stats) {
         var visParams = {
             min: stats.NDVI_min,
@@ -245,52 +272,50 @@ function updateMap(dateEnd) {
         };
 
         map.centerObject(currentSite, 11);
-        map.addLayer(ndvi_imgs_sel.median(), visParams, 'NDVI');
-        showLegend("ดัชนีความแตกต่างของพืชพรรณ: NDVI", visParams);
+        map.addLayer(ndviClipped, visParams, 'NDVI', true, 0.7);
+        showLegend("NDVI", visParams);
     });
 
-    var ndmi_imgs = dataset.map(compute_ndmi);
-    var ndmi_imgs_sel = ndmi_imgs.select('NDMI');
-    var ndmiStats = ndmi_imgs_sel.median().reduceRegion({
+    var bmCollection = dataset.select('BM');
+    var bmClipped = bmCollection.median().clip(currentSite);
+    var bmStats = bmClipped.reduceRegion({
         reducer: ee.Reducer.minMax(),
         geometry: currentSite,
         scale: 500,
         bestEffort: true
     });
-    ndmiStats.evaluate(function (stats) {
-        var visParams = {
-            min: stats.NDMI_min,
-            max: stats.NDMI_max,
-            palette: palette.ndmi
+    bmStats.evaluate(function (stats) {
+        var bmParams = {
+            min: stats.BM_min,
+            max: stats.BM_max,
+            palette: palette.bm
         };
 
-        map.centerObject(currentSite, 11);
-        map.addLayer(ndmi_imgs_sel.median(), visParams, 'NDMI');
-        showLegend("ดัชนีความแตกต่างของความชื้น: NDMI", visParams);
+        map.addLayer(bmClipped, bmParams, 'Biomass 3PGs', true, 0.7);
+        showLegend("Biomass 3PGs (kg/m²)", bmParams);
     });
 
-    var ndwi_imgs = dataset.map(compute_ndwi);
-    var ndwi_imgs_sel = ndwi_imgs.select('NDWI');
-    var ndwiStats = ndwi_imgs_sel.median().reduceRegion({
+    var bmtCollection = dataset.select('BMT');
+    var bmtClipped = bmtCollection.median().clip(currentSite);
+    var bmtStats = bmtClipped.reduceRegion({
         reducer: ee.Reducer.minMax(),
         geometry: currentSite,
         scale: 500,
         bestEffort: true
     });
-    ndwiStats.evaluate(function (stats) {
-        var visParams = {
-            min: stats.NDWI_min,
-            max: stats.NDWI_max,
-            palette: palette.ndwi
+    bmtStats.evaluate(function (stats) {
+        var bmtParams = {
+            min: stats.BMT_min,
+            max: stats.BMT_max,
+            palette: palette.bm
         };
 
-        map.centerObject(currentSite, 11);
-        map.addLayer(ndwi_imgs_sel.median(), visParams, 'NDWI');
-        showLegend("ดัชนีความแตกต่างของน้ำ: NDWI", visParams);
+        map.addLayer(bmtClipped, bmtParams, 'Biomass (Parinwat & Sakda Equation)', true, 0.7);
+        showLegend("Biomass (Parinwat & Sakda Equation) (kg/m²)", bmtParams);
     });
 
     map.addLayer(currentSite.map(convertPolygonToLine), visPolygonBorder, "study area", true);
-    createDateCharts(ndmi_imgs_sel, ndwi_imgs_sel, ndvi_imgs_sel)
+    createDateCharts(ndviCollection, bmCollection, bmtCollection)
 }
 
 var dateSlider = ui.DateSlider({
@@ -298,7 +323,6 @@ var dateSlider = ui.DateSlider({
     value: '2024-12-31',
     period: 1,
     onChange: function (date) {
-        // If the slider returns a DateRange, select the end date.
         var selectedDate = (date.start) ? date.end() : date;
         var dateStr = ee.Date(selectedDate).format('yyyy-MM-dd').getInfo();
         updateMap(dateStr);
@@ -306,22 +330,19 @@ var dateSlider = ui.DateSlider({
     style: { width: '80%' }
 });
 
-// Create a select widget to switch between study sites.
 var siteSelect = ui.Select({
     style: { margin: '4px 8px', fontSize: '18px', fontWeight: 'bold' },
     items: [
         { label: "ปากทับ อุตรดิตถ์", value: "ud" },
         { label: "แม่ทาเหนือ เชียงใหม่", value: "mt" }
     ],
-    value: 'ud',  // default value
+    value: 'ud',
     onChange: function (selected) {
-        // Switch the current study area based on the selection.
         if (selected === 'ud') {
             currentSite = ud;
         } else if (selected === 'mt') {
             currentSite = mt;
         }
-        // Update the map with the current date from the slider.
         var currentDate = dateSlider.getValue();
         var selectedDate = (currentDate[0]) ? currentDate[0] : currentDate[1];
         var dateStr = ee.Date(selectedDate).format('yyyy-MM-dd').getInfo();
@@ -329,43 +350,34 @@ var siteSelect = ui.Select({
     }
 });
 
-// Add the site select and date slider (with labels) to the left panel.
 var txtTitle = ui.Label({
-    value: 'ติดตาม NDVI, NDMI, NDWI',
+    value: 'ติดตามปริมาณเชื้อเพลิง',
     style: { margin: '4px 8px', fontSize: '20px', fontWeight: 'bold' }
 });
 leftPanel.add(txtTitle);
 
-var txtSubTitle1 = ui.Label({
-    value: 'ดัชนี้จากข้อมูล Sentinel-2',
+var txtSubTitle0 = ui.Label({
+    value: 'คำนวณปริมาณเชื้อเพลิงด้วย:',
     style: { margin: '4px 8px' }
 });
+leftPanel.add(txtSubTitle0);
+
+var txtSubTitle1 = ui.Label({
+    value: '1. จากวิธี 3PGs จากข้อมูลรายวันของดาวเทียม TERRA/AQUA MODIS ',
+    style: { margin: '4px 8px' }
+});
+leftPanel.add(txtSubTitle1);
 
 var txtSubTitle2 = ui.Label({
-    value: 'ดัชนีความแตกต่างของพืชพรรณ (Normalized Difference Vegetation Index: NDVI)',
+    value: '2. จากสมการที่พัฒนาขึ้นของโครงการ (Parinwat & Sakda Equation)',
     style: { margin: '4px 8px' }
 });
-
-var txtSubTitle3 = ui.Label({
-    value: 'ดัชนีความแตกต่างของความชื้น (Normalized Difference Moisture Index: NDMI) และดัชนีความแตกต่างของน้ำ (Normalized Difference Water Index: NDWI) จากข้อมูล Sentinel-2',
-    style: { margin: '4px 8px' }
-});
-
-var txtSubTitle4 = ui.Label({
-    value: 'ดัชนีความแตกต่างของน้ำ (Normalized Difference Water Index: NDWI)',
-    style: { margin: '4px 8px' }
-});
-
-leftPanel.add(txtSubTitle1);
 leftPanel.add(txtSubTitle2);
-leftPanel.add(txtSubTitle3);
-leftPanel.add(txtSubTitle4);
 
 var siteSelectTitle = ui.Label({
     value: "เลือกพื้นที่",
     style: { margin: '4px 8px', fontSize: '18px', fontWeight: 'bold' }
 });
-
 leftPanel.add(siteSelectTitle);
 leftPanel.add(siteSelect);
 
@@ -376,7 +388,6 @@ var txtDateUi = ui.Label({
 leftPanel.add(txtDateUi);
 leftPanel.add(dateSlider);
 
-// Retrieve the default date from the slider and update the map.
 var defaultValue = dateSlider.getValue();
 var defaultDateStr = (defaultValue[0])
     ? ee.Date(defaultValue[0]).format('yyyy-MM-dd').getInfo()
