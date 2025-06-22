@@ -3,7 +3,7 @@
 // -----------------------------
 var aoiDict = {
     'เวียงสา': ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/winagsa"),
-    'ขุนยวม': ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam") // สมมุติชื่อแตกต่างกัน
+    'ขุนยวม': ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam")
 };
 
 var lulcBase = ee.Image('ESA/WorldCover/v200/2021').select('Map');
@@ -43,7 +43,7 @@ var legend = ui.Panel({
 });
 
 legend.add(ui.Label({
-    value: 'คำอธิบาย LULC และ Hotspot',
+    value: 'คำอธิบาย',
     style: { fontWeight: 'bold', fontSize: '16px', margin: '0 0 8px 0' }
 }));
 
@@ -83,7 +83,7 @@ var controlPanel = ui.Panel({
         backgroundColor: 'rgba(255,255,255,0.85)',
         border: '1px solid black',
         borderRadius: '10px',
-        width: '20%'
+        width: '30%'
     }
 });
 
@@ -124,12 +124,15 @@ function updateMap() {
     if (lulcLayer) mapPanel.layers().remove(lulcLayer);
     if (hotspotLayer) mapPanel.layers().remove(hotspotLayer);
     if (outlineLayer) mapPanel.layers().remove(outlineLayer);
+    if (controlPanel.widgets().length() > 4) {
+        controlPanel.widgets().remove(controlPanel.widgets().get(4)); // remove old chart
+    }
 
-    // แสดงขอบเขต AOI
+    // ขอบเขต AOI
     var outline = selectedAOI.style({
         color: 'yellow',
         width: 2,
-        fillColor: '00000000'  // transparent
+        fillColor: '00000000'
     });
     outlineLayer = ui.Map.Layer(outline, {}, 'ขอบเขตพื้นที่ศึกษา');
     mapPanel.layers().add(outlineLayer);
@@ -145,22 +148,48 @@ function updateMap() {
     var firms = ee.ImageCollection('FIRMS')
         .filterDate(start, end)
         .filterBounds(selectedAOI)
-        .select('T21')
-        .mean()
-        .clip(selectedAOI);
-    hotspotLayer = ui.Map.Layer(firms, { palette: ['red'] }, 'Hotspot FIRMS ' + selectedYear);
+        .select('T21');
+
+    var firmsImage = firms.mean().clip(selectedAOI);
+    hotspotLayer = ui.Map.Layer(firmsImage, { palette: ['red'] }, 'Hotspot FIRMS ' + selectedYear, true, 0.85);
     mapPanel.layers().add(hotspotLayer);
 
-    // ขยายแผนที่ไปยัง AOI
-    mapPanel.centerObject(selectedAOI, 9);
+    // แสดงกราฟ Hotspot รายเดือน
+    var firmsMonthly = firms.map(function (img) {
+        return img.set('month', img.date().get('month'));
+    });
+
+    var chart = ui.Chart.image.seriesByRegion({
+        imageCollection: firmsMonthly,
+        band: 'T21',
+        regions: selectedAOI,
+        reducer: ee.Reducer.count(),
+        scale: 1000,
+        seriesProperty: 'month',
+        xProperty: 'system:time_start'
+    })
+        .setChartType('ColumnChart')
+        .setOptions({
+            title: 'จำนวนจุด Hotspot รายเดือน: ' + aoiSelect.getValue() + ' (' + yearSelect.getValue() + ')',
+            hAxis: { title: 'เดือน', format: 'MMM' },
+            vAxis: { title: 'จำนวนจุด (pixels)' },
+            legend: { position: 'none' },
+            colors: ['#d62728']
+        });
+
+
+    controlPanel.add(ui.Label('กราฟ Hotspot รายเดือน:', { margin: '10px 0 4px 0' }));
+    controlPanel.add(chart);
+
+    // จัดตำแหน่งแผนที่
+    mapPanel.centerObject(selectedAOI);
 }
 
-
-// Initial load
+// โหลดข้อมูลเริ่มต้น
 updateMap();
 
 // -----------------------------
-// 6. Combine Panels
+// 6. Layout
 // -----------------------------
 var mainPanel = ui.SplitPanel({
     firstPanel: controlPanel,
