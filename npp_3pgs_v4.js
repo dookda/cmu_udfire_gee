@@ -1,5 +1,6 @@
 // Data collections
-var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/paktab");
+var fbound = ee.FeatureCollection("projects/ee-sakda-451407/assets/forest_bound_sgpart");
+var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/ud_bound");
 var mt = ee.FeatureCollection("projects/ee-sakda-451407/assets/meatha_n");
 
 var currentSite = ud;
@@ -314,7 +315,18 @@ function updateMap(dateEnd) {
         showLegend("Biomass (Parinwat & Sakda Equation) (kg/m²)", bmtParams);
     });
 
-    map.addLayer(currentSite.map(convertPolygonToLine), visPolygonBorder, "study area", true);
+    var fbund = siteSelect.getValue();
+
+    if (fbund=="ud"){
+        var styledFbound = fbound.style({
+          color: 'FF0000',      
+          fillColor: '00000000', 
+          width: 2               
+        });
+        map.addLayer(styledFbound, {}, 'ขอบเขตป่าไม้', true);
+    }
+
+    map.addLayer(currentSite.map(convertPolygonToLine), visPolygonBorder, "study area", false);
     createDateCharts(ndviCollection, bmCollection, bmtCollection)
 }
 
@@ -333,7 +345,7 @@ var dateSlider = ui.DateSlider({
 var siteSelect = ui.Select({
     style: { margin: '4px 8px', fontSize: '18px', fontWeight: 'bold' },
     items: [
-        { label: "ปากทับ อุตรดิตถ์", value: "ud" },
+        { label: "อุตรดิตถ์", value: "ud" },
         { label: "แม่ทาเหนือ เชียงใหม่", value: "mt" }
     ],
     value: 'ud',
