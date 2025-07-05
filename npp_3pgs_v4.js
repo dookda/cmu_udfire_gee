@@ -1,7 +1,10 @@
 // Data collections
-var fbound = ee.FeatureCollection("projects/ee-sakda-451407/assets/forest_bound_sgpart");
-var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/ud_bound");
-var mt = ee.FeatureCollection("projects/ee-sakda-451407/assets/meatha_n");
+
+var fbound = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/forest_bound_sgpart");
+var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/ud_bound");
+var mt = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/meatha_n");
+var ky = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam");
+var vs = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/winagsa");
 
 var currentSite = ud;
 
@@ -104,7 +107,6 @@ function getDataset(dateEnd, dateComposite) {
 
     return mdData;
 }
-
 
 function createDateCharts(ndviCollection, bmCollection, bmtCollection) {
     chartPanel.clear();
@@ -251,6 +253,7 @@ var palette = {
 var visPolygonBorder = { color: 'red', width: 2 };
 function updateMap(dateEnd) {
     map.layers().reset();
+    // clear the legend panel
     legendPanel.clear();
 
     var dataset = getDataset(dateEnd, 30);
@@ -317,11 +320,11 @@ function updateMap(dateEnd) {
 
     var fbund = siteSelect.getValue();
 
-    if (fbund=="ud"){
+    if (fbund == "ud") {
         var styledFbound = fbound.style({
-          color: 'FF0000',      
-          fillColor: '00000000', 
-          width: 2               
+            color: 'FF0000',
+            fillColor: '00000000',
+            width: 2
         });
         map.addLayer(styledFbound, {}, 'ขอบเขตป่าไม้', true);
     }
@@ -346,7 +349,9 @@ var siteSelect = ui.Select({
     style: { margin: '4px 8px', fontSize: '18px', fontWeight: 'bold' },
     items: [
         { label: "อุตรดิตถ์", value: "ud" },
-        { label: "แม่ทาเหนือ เชียงใหม่", value: "mt" }
+        { label: "แม่ทาเหนือ เชียงใหม่", value: "mt" },
+        { label: "ขุนยวม แม่ฮ่องสอน", value: "ky" },
+        { label: "เวียงสา น่าน", value: "vs" },
     ],
     value: 'ud',
     onChange: function (selected) {
@@ -354,7 +359,12 @@ var siteSelect = ui.Select({
             currentSite = ud;
         } else if (selected === 'mt') {
             currentSite = mt;
+        } else if (selected === 'ky') {
+            currentSite = ky;
+        } else if (selected === 'vs') {
+            currentSite = vs;
         }
+
         var currentDate = dateSlider.getValue();
         var selectedDate = (currentDate[0]) ? currentDate[0] : currentDate[1];
         var dateStr = ee.Date(selectedDate).format('yyyy-MM-dd').getInfo();
