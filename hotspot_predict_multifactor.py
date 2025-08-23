@@ -12,6 +12,7 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.regularizers import l2
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 ee.Authenticate()
 try:
@@ -20,8 +21,8 @@ except Exception as e:
     ee.Authenticate()
     ee.Initialize(project="ee-sakda-451407")
 
-study_area = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam_sub") \
-               .geometry().bounds()
+    study_area = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam_sub") \
+        .geometry().bounds()
 date_start = ee.Date('2020-01-01')
 date_end = ee.Date('2024-12-31')
 
@@ -129,53 +130,80 @@ df['month'] = df.index.month
 df['month_sin'] = np.sin(2*np.pi*df.month/12)
 df['month_cos'] = np.cos(2*np.pi*df.month/12)
 
-
 fire_pts = fire_points.flatten()
-features = ['hotspot', 'month_sin', 'month_cos', 'rainfall', 'ndvi']
-print(df[features].head(15))
 
-# 1) Prepare multivariate sequences
+features = ['hotspot']  # 'hotspot','month_sin','month_cos','rainfall','ndvi'
+print(df[features].head(5))
+
 data = df[features].values
-# data = df['hotspot'].values
-
-# scale
 scaler = MinMaxScaler()
 scaled = scaler.fit_transform(data)
 
-# 2) Create sequences with a longer look-back
-
 
 def create_sequences(data, seq_len):
-    X, y = [], []
+    Xs, ys = [], []
     for i in range(len(data) - seq_len):
-        X.append(data[i:i+seq_len])
-        y.append(data[i+seq_len])
-    return np.array(X), np.array(y)
+        Xs.append(data[i:i+seq_len])
+        ys.append(data[i+seq_len, 0])
+    return np.array(Xs), np.array(ys)
 
 
-sequence_length = 30
+sequence_length = 4
 X, y = create_sequences(scaled, sequence_length)
+X = X.astype('float32')
+y = y.astype('float32')
+
 n_features = X.shape[-1]
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.3, shuffle=False
 )
 
-# 8) Define and train LSTM model
-model = Sequential([
-    LSTM(64, activation='relu', input_shape=(
-        sequence_length, n_features), return_sequences=True),
-    Dropout(0.2),
-    LSTM(32, activation='relu'),
-    Dropout(0.2),
-    Dense(16, activation='relu'),
-    Dense(1)  # Predict only hotspot
-])
+X_train, X_test = X_train.astype('float32'), X_test.astype('float32')
+y_train, y_test = y_train.astype('float32'), y_test.astype('float32')
 
-model.compile(optimizer='adam', loss='mse')
+model = Sequential([
+    LSTM(128, activation="tanh", return_sequences=True,
+         input_shape=(sequence_length, n_features)),
+    Dropout(0.3),
+    LSTM(64, activation="tanh"),
+    Dropout(0.3),
+    Dense(1)
+])
+model.compile(optimizer=Adam(learning_rate=0.001), loss="mse")
+model.summary()
+early_stopping = EarlyStopping(
+    monitor='val_loss', patience=10, restore_best_weights=True)
 history = model.fit(
     X_train, y_train,
-    epochs=50,
-    batch_size=16,
-    validation_split=0.1,
-    verbose=0)
+    epochs=100,
+    batch_size=8,
+    validation_split=0.2,
+    verbose=0,
+    callbacks=[early_stopping]
+)
+
+y_pred_norm = model.predict(X_test).flatten()   # shape = (n_test,)
+y_test_norm = y_test                            # shape = (n_test,)
+
+hot_min = scaler.data_min_[0]
+hot_max = scaler.data_max_[0]
+hot_rng = hot_max - hot_min
+
+y_pred = y_pred_norm * hot_rng + hot_min
+y_actual = y_test_norm * hot_rng + hot_min
+
+mse = mean_squared_error(y_actual, y_pred)
+mae = mean_absolute_error(y_actual, y_pred)
+r2 = r2_score(y_actual, y_pred)
+print(f"MSE: {mse:.2f}, MAE: {mae:.2f}, R2: {r2:.2f}")
+
+plt.figure(figsize=(10, 3))
+plt.plot(y_actual, label='Actual Hotspots')
+plt.plot(y_pred,   label='Predicted Hotspots', linestyle='--')
+plt.title('Actual vs. Predicted Hotspots on Test Set')
+plt.xlabel('Sample Index (8-day blocks)')
+plt.ylabel('Hotspot Count')
+plt.legend()
+plt.tight_layout()
+plt.show()
