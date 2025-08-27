@@ -3,7 +3,7 @@ Date,Month,Year,Predicted_hotspot_count,Risk_Level,Season
 2024-10-01,October,2024,30,Medium Risk,Wet Season
 2024-11-01,November,2024,30,Medium Risk,Wet Season
 2024-12-01,December,2024,30,Medium Risk,Dry Season
-2025-01-01,January,2025,31,Medium Risk,Dry Season
+2025-01-01,January,2025,30,Medium Risk,Dry Season
 2025-02-01,February,2025,30,Medium Risk,Dry Season
 2025-03-01,March,2025,30,Medium Risk,Dry Season
 2025-04-01,April,2025,30,Medium Risk,Dry Season
