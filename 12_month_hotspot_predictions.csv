@@ -1,13 +1,13 @@
 Date,Month,Year,Predicted_hotspot_count,Risk_Level,Season
-2024-09-01,September,2024,256.0,High Risk,Wet Season
-2024-10-01,October,2024,270.0,High Risk,Wet Season
-2024-11-01,November,2024,289.0,High Risk,Wet Season
-2024-12-01,December,2024,701.0,High Risk,Dry Season
-2025-01-01,January,2025,1388.0,High Risk,Dry Season
-2025-02-01,February,2025,3515.0,High Risk,Dry Season
-2025-03-01,March,2025,7756.0,High Risk,Dry Season
-2025-04-01,April,2025,4846.0,High Risk,Dry Season
-2025-05-01,May,2025,964.0,High Risk,Dry Season
-2025-06-01,June,2025,578.0,High Risk,Wet Season
-2025-07-01,July,2025,341.0,High Risk,Wet Season
-2025-08-01,August,2025,251.0,High Risk,Wet Season
+2024-09-01,September,2024,772.0,High Risk,Wet Season
+2024-10-01,October,2024,790.0,High Risk,Wet Season
+2024-11-01,November,2024,767.0,High Risk,Wet Season
+2024-12-01,December,2024,843.0,High Risk,Dry Season
+2025-01-01,January,2025,1096.0,High Risk,Dry Season
+2025-02-01,February,2025,2629.0,High Risk,Dry Season
+2025-03-01,March,2025,6042.0,High Risk,Dry Season
+2025-04-01,April,2025,4974.0,High Risk,Dry Season
+2025-05-01,May,2025,1435.0,High Risk,Dry Season
+2025-06-01,June,2025,934.0,High Risk,Wet Season
+2025-07-01,July,2025,822.0,High Risk,Wet Season
+2025-08-01,August,2025,774.0,High Risk,Wet Season
