@@ -1,6 +1,6 @@
 COMPREHENSIVE ANALYSIS REPORT: NDVI vs HOTSPOT COUNT
 ================================================================================
-Analysis Date: 2025-09-05 17:03:58
+Analysis Date: 2025-09-06 19:40:12
 Data Period: 2017-08-01 to 2025-08-01
 Total Records: 97
 
