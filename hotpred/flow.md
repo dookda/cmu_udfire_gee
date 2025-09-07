@@ -1,3 +1,4 @@
+## โฟลว์การทำงาน (Workflow)
 ```mermaid
 %%{init: {'theme':'default','securityLevel':'loose','fontFamily':'"Noto Sans Thai", sans-serif'}}%%
 flowchart TD
@@ -22,4 +23,13 @@ flowchart TD
     F --> F1["พยากรณ์จำนวนจุดความร้อนล่วงหน้า 12 เดือน"]
     F1 --> F2["ช่วงเวลาพยากรณ์: กันยายน 2568 – สิงหาคม 2569"]
     F2 --> G["สิ้นสุด"]
+```
+
+## Flow ของ สถาปัตยกรรม LSTM
+```mermaid
+graph TD
+    A[Input Layer: ข้อมูลอนุกรมเวลา 12 เดือนก่อนหน้า] --> B(LSTM Layer)
+    B --> C(Dropout Layer)
+    C --> D(Dense Layer / Output Layer)
+    D --> E[Output: จำนวนจุดความร้อนที่พยากรณ์ในเดือนถัดไป]
 ```
