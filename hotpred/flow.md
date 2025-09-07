@@ -28,8 +28,8 @@ flowchart TD
 ## Flow ของ สถาปัตยกรรม LSTM
 ```mermaid
 graph TD
-    A[Input Layer: ข้อมูลอนุกรมเวลา 12 เดือนก่อนหน้า] --> B(LSTM Layer)
-    B --> C(Dropout Layer)
-    C --> D(Dense Layer / Output Layer)
-    D --> E[Output: จำนวนจุดความร้อนที่พยากรณ์ในเดือนถัดไป]
+    A[Input Layer: ข้อมูลอนุกรมเวลา 12 เดือนก่อนหน้า<br>(ค่าเฉลี่ย NDVI และ จำนวนจุดความร้อน)] --> H1(Hidden Layer 1: LSTM Layer)
+    H1 --> H2(Hidden Layer 2: Dropout Layer)
+    H2 --> O(Output Layer: Dense Layer)
+    O --> E[Output: จำนวนจุดความร้อนที่พยากรณ์ในเดือนถัดไป]
 ```
