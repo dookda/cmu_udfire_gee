@@ -1,4 +1,6 @@
 ```mermaid
+%% ใช้บรรทัดนี้กำหนดฟอนต์ไทย (เลือกได้)
+%%{init: {'theme':'default','fontFamily':'"Noto Sans Thai",sans-serif'}}%%
 graph TD
     A[เริ่มต้น] --> B(1. การรวบรวมข้อมูล);
     B --> B1[รวบรวมข้อมูลอนุกรมเวลาจาก Google Earth Engine (GEE)];
@@ -21,6 +23,4 @@ graph TD
     F --> F1[ใช้แบบจำลองที่ผ่านการฝึกสอนพยากรณ์จำนวนจุดความร้อนล่วงหน้า 12 เดือน];
     F1 --> F2[ช่วงเวลาพยากรณ์: กันยายน 2568 - สิงหาคม 2569];
     F2 --> G[สิ้นสุด];
-    style A fill:#f9f,stroke:#333,stroke-width:4px
-    style G fill:#bbf,stroke:#333,stroke-width:4px
 ```
