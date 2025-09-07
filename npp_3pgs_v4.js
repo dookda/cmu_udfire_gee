@@ -5,6 +5,7 @@ var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/ud_bound");
 var mt = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/meatha_n");
 var ky = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam");
 var vs = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/winagsa");
+var msr = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/mea_sa_riang");
 
 var currentSite = ud;
 
@@ -352,6 +353,7 @@ var siteSelect = ui.Select({
         { label: "แม่ทาเหนือ เชียงใหม่", value: "mt" },
         { label: "ขุนยวม แม่ฮ่องสอน", value: "ky" },
         { label: "เวียงสา น่าน", value: "vs" },
+        { label: "แม่สะเรียง แม่ฮ่องสอน", value: "msr" }
     ],
     value: 'ud',
     onChange: function (selected) {
@@ -363,6 +365,8 @@ var siteSelect = ui.Select({
             currentSite = ky;
         } else if (selected === 'vs') {
             currentSite = vs;
+        } else if (selected === 'msr') {
+            currentSite = msr;
         }
 
         var currentDate = dateSlider.getValue();
