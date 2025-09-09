@@ -27,9 +27,26 @@ flowchart TD
 
 ## Flow ของ สถาปัตยกรรม LSTM
 ```mermaid
-graph TD
-    A[Input Layer: ข้อมูลอนุกรมเวลา 12 เดือนก่อนหน้า] --> B(LSTM Layer)
-    B --> C(Dropout Layer)
-    C --> D(Dense Layer / Output Layer)
-    D --> E[Output: จำนวนจุดความร้อนที่พยากรณ์ในเดือนถัดไป]
+%%{init: {'theme':'default','securityLevel':'loose','fontFamily':'"Noto Sans Thai", sans-serif'}}%%
+flowchart TD
+    I["อินพุต\nshape = (sequence_length, n_features)"] --> L1["LSTM(64)\nreturn_sequences=True\nkernel_regularizer=L2(0.001)"]
+    L1 --> DO1["Dropout(0.3)"]
+    DO1 --> BN1["BatchNormalization()"]
+
+    BN1 --> L2["LSTM(32)\nreturn_sequences=True\nkernel_regularizer=L2(0.001)"]
+    L2 --> DO2["Dropout(0.3)"]
+    DO2 --> BN2["BatchNormalization()"]
+
+    BN2 --> L3["LSTM(16)\nreturn_sequences=False\nkernel_regularizer=L2(0.001)"]
+    L3 --> DO3["Dropout(0.3)"]
+
+    DO3 --> D1["Dense(16, activation='relu')"]
+    D1 --> DO4["Dropout(0.2)"]
+    DO4 --> OUT["Dense(1)  →  Output (hotspot_count)"]
+
+    %% สรุปการคอมไพล์
+    OUT --> C["Compile"]
+    C --> OPT["Optimizer: Adam(learning_rate=0.001)"]
+    C --> LOSS["Loss: 'mse'"]
+    C --> MET["Metrics: ['mae']"]
 ```
