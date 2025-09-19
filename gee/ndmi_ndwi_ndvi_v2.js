@@ -3,6 +3,7 @@ var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/paktab");
 var mt = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/meatha_n");
 var ky = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam");
 var vs = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/winagsa");
+var ms = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/measariang");
 
 // Global variable to hold the current study area.
 var currentSite = ud;  // Default site is 'ud'.
@@ -315,7 +316,8 @@ var siteSelect = ui.Select({
         { label: "ปากทับ อุตรดิตถ์", value: "ud" },
         { label: "แม่ทาเหนือ เชียงใหม่", value: "mt" },
         { label: "ขุนยวม แม่ฮ่องสอน", value: "ky" },
-        { label: "เวียงสา น่าน", value: "vs" }
+        { label: "เวียงสา น่าน", value: "vs" },
+        { label: "แม่สะเรียง แม่ฮ่องสอน", value: "ms" }
     ],
     value: 'ud',  // default value
     onChange: function (selected) {
@@ -328,6 +330,8 @@ var siteSelect = ui.Select({
             currentSite = ky;
         } else if (selected === 'vs') {
             currentSite = vs;
+        } else if (selected === 'ms') {
+            currentSite = ms;
         }
         // Update the map with the current date from the slider.
         var currentDate = dateSlider.getValue();

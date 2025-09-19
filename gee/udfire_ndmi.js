@@ -4,12 +4,14 @@ var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/paktab");
 var mt = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/meatha_n");
 var ky = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam");
 var vs = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/winagsa");
+var ms = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/measariang");
 
 var studyAreas = {
     'ปากทับ จ.อุตรดิตถ์': ud,
     'แม่ทา จ.เชียงใหม่': mt,
     'ขุนยวม จ.แม่ฮ่องสอน': ky,
-    'เวียงสา จ.น่าน': vs
+    'เวียงสา จ.น่าน': vs,
+    'แม่สะเรียง จ.แม่ฮ่องสอน': ms
 };
 
 // 2. NDMI calculation function
@@ -56,9 +58,12 @@ var panel = ui.Panel({
     widgets: [
         ui.Label('ดัชนีความแตกต่างของความชื้น (NDMI)', { fontWeight: 'bold', fontSize: '20px' }),
         ui.Label('NDMI (Normalized Difference Moisture Index) เป็นดัชนีที่ใช้ประเมินปริมาณน้ำในพืช (vegetation water content) โดยใช้ข้อมูลจากแถบคลื่นอินฟราเรดใกล้ (NIR) และคลื่นอินฟราเรดช่วงสั้น (SWIR) (การศึกษานี้ใช้ข้อมูลจากดาวเทียม Sentinel-2) ค่า NDMI จะอยู่ระหว่าง -1 ถึง 1 โดยค่าสูงบ่งชี้ปริมาณน้ำในพืชสูง และค่าต่ำบ่งชี้ถึงความแห้งแล้งหรือความเครียดจากน้ำในพืช', { fontSize: '12px' }),
-        ui.Label('เลือกพื้นที่ศึกษา:'), areaSelect,
-        ui.Label('วันที่เริ่มต้น:'), startDateInput,
-        ui.Label('วันที่สิ้นสุด:'), endDateInput,
+        ui.Label('1. เลือกพื้นที่ศึกษา:', { fontWeight: 'bold' }), areaSelect,
+        ui.Label('2. เลือกช่วงเวลาที่ต้องการคำนวณ:', { fontWeight: 'bold' }),
+        ui.Label('วันที่เริ่มต้น (ปี ค.ศ.-เดือน-วัน)'), startDateInput,
+        ui.Label('วันที่สิ้นสุด (ปี ค.ศ.-เดือน-วัน)'), endDateInput,
+        ui.Label(''),
+        ui.Label('3. กดปุ่ม "คำนวณ NDMI" เพื่อแสดงผลลัพธ์บนแผนที่', { fontWeight: 'bold' }),
         applyButton
     ],
     style: { width: '300px' }
@@ -105,9 +110,9 @@ function addNDMILegend() {
     var legendLabels = ui.Panel({
         layout: ui.Panel.Layout.flow('horizontal'),
         widgets: [
-            ui.Label('-1', { margin: '4px 8px' }),
-            ui.Label('0', { margin: '4px 28px' }),
-            ui.Label('+1', { margin: '4px 8px' })
+            ui.Label('-1 (แห้งแล้ง)', { margin: '4px 8px' }),
+            ui.Label('0 (ปกติ)', { margin: '4px 28px' }),
+            ui.Label('+1 (ชื้น)', { margin: '4px 8px' })
         ]
     });
 
