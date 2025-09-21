@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Map - UDFire</title>
+
+    <!-- Google Fonts - Prompt -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+        rel="stylesheet">
+
+    <!-- MapLibre GL JS -->
+    <script src="https://unpkg.com/maplibre-gl@^5.7.3/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@^5.7.3/dist/maplibre-gl.css" rel="stylesheet" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <!-- Floating Controls -->
+    <div class="map-controls">
+        <!-- Basemap Toggle -->
+        <div class="control-panel basemap-control">
+            <h3>แผนที่ฐาน</h3>
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="basemap-toggle">
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">
+                    <span class="light-label">แผนที่ Light</span>
+                    <span class="dark-label">แผนที่ Dark</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Layer Control -->
+        <div class="control-panel layer-control">
+            <h3>ชั้นข้อมูล</h3>
+            <div class="layer-item">
+                <label>
+                    <input type="checkbox" id="hexagon-layer" checked>
+                    <span class="checkmark"></span>
+                    พื้นที่ป่าไม้ (Hexagons)
+                </label>
+            </div>
+            <div class="layer-item">
+                <label>
+                    <input type="checkbox" id="hotspot-layer" checked>
+                    <span class="checkmark"></span>
+                    จุดความร้อน (จาก FIRMS)
+                </label>
+            </div>
+        </div>
+
+        <!-- Map Info -->
+        <div class="control-panel info-control">
+            <h3>Map Info</h3>
+            <div class="info-item">
+                <span class="label">เลือกเดือน:</span>
+                <select id="month-selector">
+                    <option value="">-- ดูทั้งหมด --</option>
+                    <option value="2026-01-01">มกราคม 2026</option>
+                    <option value="2026-02-01">กุมภาพันธ์ 2026</option>
+                    <option value="2026-03-01">มีนาคม 2026</option>
+                    <option value="2026-04-01">เมษายน 2026</option>
+                    <option value="2026-05-01">พฤษภาคม 2026</option>
+                    <option value="2026-06-01">มิถุนายน 2026</option>
+                    <option value="2026-07-01">กรกฎาคม 2026</option>
+                    <option value="2026-08-01">สิงหาคม 2026</option>
+                    <option value="2026-09-01">กันยายน 2026</option>
+                    <option value="2026-10-01">ตุลาคม 2026</option>
+                    <option value="2026-11-01">พฤศจิกายน 2026</option>
+                    <option value="2026-12-01">ธันวาคม 2026</option>
+                </select>
+            </div>
+            <div class="info-item">
+                <span class="label">Zoom:</span>
+                <span id="zoom-level">8</span>
+            </div>
+            <div class="info-item">
+                <span class="label">Center:</span>
+                <span id="map-center">100.0, 18.5</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading map...</div>
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="script.js"></script>
+</body>
+
+</html>

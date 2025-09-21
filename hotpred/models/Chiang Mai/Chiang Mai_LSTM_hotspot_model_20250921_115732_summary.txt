@@ -1,0 +1,18 @@
+LSTM Hotspot Prediction Model Summary
+==================================================
+Site: Chiang Mai
+Created: 2025-09-21 11:57:32
+Data Period: 2017-08-01T00:00:00 to 2025-08-01T00:00:00
+Total Training Months: 97
+Sequence Length: 6
+Target: hotspot_count
+Features: NDVI, month_sin, month_cos, season_sin, season_cos, summer_season, rainy_season, winter_season, peak_fire_season, low_fire_season
+Model Parameters: 35,425
+
+Model Performance:
+  rmse: 246.8475
+  mae: 169.8594
+  r2_score: 0.5478
+  training_epochs: 92
+  final_loss: 0.4901
+  final_val_loss: 0.5609
