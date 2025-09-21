@@ -202,6 +202,11 @@ async function loadHexagonLayer() {
         hexagonLayerLoaded = true;
         console.log('Hexagon layer loaded successfully');
 
+        // Set default coloring to January 2026
+        setTimeout(() => {
+            updateHexagonColors('2026-01-01');
+        }, 100);
+
     } catch (error) {
         console.error('Error loading hexagon layer:', error);
         showNotification('Error loading hexagon layer', 'error');
@@ -488,7 +493,98 @@ function updateHexagonColors(selectedMonth) {
     // Update the layer paint property
     map.setPaintProperty('hexagon-fill', 'fill-color', fillColorExpression);
 
+    // Update legend
+    updateLegend(selectedMonth);
+
     console.log(`Updated hexagon colors for month: ${selectedMonth || 'default'}`);
+}
+
+// Update legend based on selected visualization mode
+function updateLegend(selectedMonth) {
+    const legendContent = document.getElementById('legend-content');
+
+    if (!selectedMonth) {
+        // Show forest area legend
+        legendContent.innerHTML = `
+            <div class="legend-section">
+                <h4>พื้นที่ป่าไม้ (ตร.ม.)</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #feedde;"></div>
+                    <span>0-1,000 ตร.ม.</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #fdd49e;"></div>
+                    <span>1,000-5,000 ตร.ม.</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #fdbb84;"></div>
+                    <span>5,000-10,000 ตร.ม.</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #fc8d59;"></div>
+                    <span>10,000-20,000 ตร.ม.</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ef6548;"></div>
+                    <span>20,000-50,000 ตร.ม.</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #d7301f;"></div>
+                    <span>50,000-100,000 ตร.ม.</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #990000;"></div>
+                    <span>100,000+ ตร.ม.</span>
+                </div>
+            </div>
+            <div class="legend-note">
+                <small>* เลือกเดือนเพื่อดูการคาดการณ์จุดความร้อน</small>
+            </div>
+        `;
+    } else {
+        // Show prediction legend
+        const monthName = new Date(selectedMonth).toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'long'
+        });
+
+        legendContent.innerHTML = `
+            <div class="legend-section">
+                <h4>จำนวนจุดความร้อนที่คาดการณ์ (${monthName})</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #d7f4d7;"></div>
+                    <span>0-10 จุด (ต่ำมาก)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #b8e6b8;"></div>
+                    <span>10-25 จุด (ต่ำ)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ffe066;"></div>
+                    <span>25-50 จุด (ปานกลาง)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ffb366;"></div>
+                    <span>50-75 จุด (ค่อนข้างสูง)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ff8566;"></div>
+                    <span>75-100 จุด (สูง)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ff5566;"></div>
+                    <span>100-150 จุด (สูงมาก)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #cc0000;"></div>
+                    <span>150+ จุด (อันตราย)</span>
+                </div>
+            </div>
+            <div class="legend-note">
+                <small>* คลิกบนพื้นที่เพื่อดูรายละเอียด</small>
+            </div>
+        `;
+    }
 }
 
 // Hexagon click event handler
@@ -501,9 +597,9 @@ function onHexagonClick(e) {
         const feature = features[0];
         const properties = feature.properties;
 
-        // Create popup content
+        // Create simplified popup content (only Province, จังหวัด, and Hexagon ID)
         let popupContent = '<div class="popup-content">';
-        popupContent += '<h4>🌲 Forest Hexagon Prediction</h4>';
+        popupContent += '<h4>🌲 Forest Hexagon</h4>';
 
         if (properties.PROV_NAM_E) {
             popupContent += `<p><strong>Province:</strong> ${properties.PROV_NAM_E}</p>`;
@@ -513,15 +609,21 @@ function onHexagonClick(e) {
             popupContent += `<p><strong>จังหวัด:</strong> ${properties.PROV_NAM_T}</p>`;
         }
 
-        if (properties.Shape_Area) {
-            popupContent += `<p><strong>Shape Area:</strong> ${properties.Shape_Area.toLocaleString()} sq meters</p>`;
-        }
-
         if (properties.id) {
             popupContent += `<p><strong>Hexagon ID:</strong> ${properties.id}</p>`;
         }
 
-        // Display predictions if available
+        popupContent += '<hr style="margin: 10px 0; border: none; border-top: 1px solid #ddd;">';
+        popupContent += '<p style="text-align: center; color: #666; font-size: 12px;">📊 ดูกราฟการคาดการณ์ในด้านขวา</p>';
+        popupContent += '</div>';
+
+        // Show popup
+        new maplibregl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(popupContent)
+            .addTo(map);
+
+        // Handle predictions in chart panel
         if (properties.predictions) {
             let predictions;
             try {
@@ -534,51 +636,314 @@ function onHexagonClick(e) {
             }
 
             if (Array.isArray(predictions) && predictions.length > 0) {
-                popupContent += '<hr style="margin: 10px 0; border: none; border-top: 1px solid #ddd;">';
-                popupContent += '<h5>🔥 Hotspot Predictions 2026</h5>';
-                popupContent += '<div style="max-height: 200px; overflow-y: auto;">';
-
-                predictions.forEach(pred => {
-                    const date = new Date(pred.date).toLocaleDateString('th-TH', {
-                        year: 'numeric',
-                        month: 'long'
-                    });
-                    const count = Math.round(pred.predicted_hotspot_count);
-                    const intensity = count > 100 ? '🔴' : count > 50 ? '🟠' : count > 20 ? '🟡' : '🟢';
-                    popupContent += `<p style="margin: 5px 0;">${intensity} <strong>${date}:</strong> ${count} hotspots</p>`;
-                });
-
-                popupContent += '</div>';
-
-                // Add summary statistics
-                const totalPredicted = predictions.reduce((sum, p) => sum + p.predicted_hotspot_count, 0);
-                const avgMonthly = Math.round(totalPredicted / predictions.length);
-                const maxMonth = predictions.reduce((max, p) => p.predicted_hotspot_count > max.predicted_hotspot_count ? p : max);
-
-                popupContent += '<hr style="margin: 10px 0; border: none; border-top: 1px solid #ddd;">';
-                popupContent += '<h6>📊 Summary</h6>';
-                popupContent += `<p><strong>Total Year:</strong> ${Math.round(totalPredicted)} hotspots</p>`;
-                popupContent += `<p><strong>Monthly Avg:</strong> ${avgMonthly} hotspots</p>`;
-                popupContent += `<p><strong>Peak Month:</strong> ${new Date(maxMonth.date).toLocaleDateString('th-TH', { month: 'long' })} (${Math.round(maxMonth.predicted_hotspot_count)})</p>`;
+                showChartPanel(predictions, properties);
             }
         }
-
-        // Add other key properties (excluding predictions which we handled above)
-        Object.keys(properties).forEach(key => {
-            if (!['Shape_Area', 'id', 'PROV_NAM_E', 'PROV_NAM_T', 'geometry', 'predictions'].includes(key) && properties[key] !== null && properties[key] !== undefined) {
-                const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                popupContent += `<p><strong>${displayKey}:</strong> ${properties[key]}</p>`;
-            }
-        });
-
-        popupContent += '</div>';
-
-        // Show popup
-        new maplibregl.Popup()
-            .setLngLat(e.lngLat)
-            .setHTML(popupContent)
-            .addTo(map);
     }
+}
+
+// Show chart panel with prediction data
+function showChartPanel(predictions, properties) {
+    const chartPanel = document.getElementById('chart-panel');
+    const chartInfo = document.getElementById('chart-info');
+    const mainChart = document.getElementById('main-chart');
+    const chartDetails = document.getElementById('chart-details');
+
+    // Show the panel
+    chartPanel.style.display = 'block';
+
+    // Update chart info
+    const provinceName = properties.PROV_NAM_T || properties.PROV_NAM_E || 'Unknown';
+    chartInfo.innerHTML = `<p><strong>📍 ${provinceName}</strong></p><p>Hexagon ID: ${properties.id || 'N/A'}</p>`;
+
+    // Show and draw the chart
+    mainChart.style.display = 'block';
+    setTimeout(() => {
+        drawMainChart('main-chart', predictions);
+    }, 100);
+
+    // Add detailed statistics
+    const totalPredicted = predictions.reduce((sum, p) => sum + p.predicted_hotspot_count, 0);
+    const avgMonthly = Math.round(totalPredicted / predictions.length);
+    const maxMonth = predictions.reduce((max, p) => p.predicted_hotspot_count > max.predicted_hotspot_count ? p : max);
+    const minMonth = predictions.reduce((min, p) => p.predicted_hotspot_count < min.predicted_hotspot_count ? p : min);
+
+    chartDetails.innerHTML = `
+        <h5>📊 สรุปการคาดการณ์ 2026</h5>
+        <div class="chart-summary">
+            <div class="summary-item">
+                <span class="label">รวมทั้งปี</span>
+                <span class="value">${Math.round(totalPredicted)} จุด</span>
+            </div>
+            <div class="summary-item">
+                <span class="label">เฉลี่ยต่อเดือน</span>
+                <span class="value">${avgMonthly} จุด</span>
+            </div>
+            <div class="summary-item">
+                <span class="label">เดือนที่สูงสุด</span>
+                <span class="value">${new Date(maxMonth.date).toLocaleDateString('th-TH', { month: 'short' })} (${Math.round(maxMonth.predicted_hotspot_count)})</span>
+            </div>
+            <div class="summary-item">
+                <span class="label">เดือนที่ต่ำสุด</span>
+                <span class="value">${new Date(minMonth.date).toLocaleDateString('th-TH', { month: 'short' })} (${Math.round(minMonth.predicted_hotspot_count)})</span>
+            </div>
+        </div>
+    `;
+}
+
+// Draw chart for main panel (larger size)
+function drawMainChart(canvasId, predictions) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Chart margins and dimensions (adjusted for smaller canvas 140x100)
+    const margin = { top: 15, right: 15, bottom: 25, left: 30 };
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    // Get data values
+    const values = predictions.map(p => p.predicted_hotspot_count);
+    const maxValue = Math.max(...values);
+    const minValue = Math.min(...values);
+    const valueRange = maxValue - minValue || 1;
+
+    // Month abbreviations in Thai
+    const monthAbbr = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+    // Set font (smaller for compact chart)
+    ctx.font = '8px Prompt, Arial, sans-serif';
+    ctx.textAlign = 'center';
+
+    // Draw background
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(margin.left, margin.top, chartWidth, chartHeight);
+
+    // Draw grid lines
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 0.5;
+
+    // Horizontal grid lines (reduced to 3 for smaller chart)
+    for (let i = 0; i <= 3; i++) {
+        const y = margin.top + (chartHeight / 3) * i;
+        ctx.beginPath();
+        ctx.moveTo(margin.left, y);
+        ctx.lineTo(margin.left + chartWidth, y);
+        ctx.stroke();
+
+        // Y-axis labels (smaller font)
+        if (i < 3) {
+            const value = Math.round(maxValue - (maxValue / 3) * i);
+            ctx.fillStyle = '#666';
+            ctx.textAlign = 'right';
+            ctx.font = '7px Prompt, Arial, sans-serif';
+            ctx.fillText(value.toString(), margin.left - 3, y + 2);
+        }
+    }
+
+    // Draw chart line and area (thinner line for smaller chart)
+    ctx.beginPath();
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.fillStyle = 'rgba(255, 107, 107, 0.1)';
+    ctx.lineWidth = 1.5;
+
+    predictions.forEach((pred, index) => {
+        const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
+        const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
+        const y = margin.top + chartHeight - (normalizedValue * chartHeight);
+
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+
+    // Fill area under line
+    const lastX = margin.left + chartWidth;
+    const lastY = margin.top + chartHeight - ((values[values.length - 1] - minValue) / valueRange * chartHeight);
+    ctx.lineTo(lastX, margin.top + chartHeight);
+    ctx.lineTo(margin.left, margin.top + chartHeight);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw line
+    ctx.beginPath();
+    predictions.forEach((pred, index) => {
+        const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
+        const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
+        const y = margin.top + chartHeight - (normalizedValue * chartHeight);
+
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+    ctx.stroke();
+
+    // Draw data points (smaller for compact chart)
+    predictions.forEach((pred, index) => {
+        const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
+        const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
+        const y = margin.top + chartHeight - (normalizedValue * chartHeight);
+
+        // Point circle (smaller)
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ff6b6b';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Month labels only (no value labels to avoid clutter)
+        ctx.fillStyle = '#666';
+        ctx.textAlign = 'center';
+        ctx.font = '6px Prompt, Arial, sans-serif';
+        const monthIndex = new Date(pred.date).getMonth();
+        ctx.fillText(monthAbbr[monthIndex], x, height - 5);
+    });
+
+    // Chart title (smaller font)
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 8px Prompt, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('การคาดการณ์ 2026', width / 2, 10);
+}
+
+// Draw prediction chart on canvas
+function drawPredictionChart(canvasId, predictions) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Chart margins and dimensions
+    const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    // Get data values
+    const values = predictions.map(p => p.predicted_hotspot_count);
+    const maxValue = Math.max(...values);
+    const minValue = Math.min(...values);
+    const valueRange = maxValue - minValue || 1;
+
+    // Month abbreviations in Thai
+    const monthAbbr = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+    // Set font
+    ctx.font = '10px Prompt, Arial, sans-serif';
+    ctx.textAlign = 'center';
+
+    // Draw background
+    ctx.fillStyle = '#fafafa';
+    ctx.fillRect(margin.left, margin.top, chartWidth, chartHeight);
+
+    // Draw grid lines
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 1;
+
+    // Horizontal grid lines
+    for (let i = 0; i <= 5; i++) {
+        const y = margin.top + (chartHeight / 5) * i;
+        ctx.beginPath();
+        ctx.moveTo(margin.left, y);
+        ctx.lineTo(margin.left + chartWidth, y);
+        ctx.stroke();
+
+        // Y-axis labels
+        if (i < 5) {
+            const value = Math.round(maxValue - (maxValue / 5) * i);
+            ctx.fillStyle = '#666';
+            ctx.textAlign = 'right';
+            ctx.fillText(value.toString(), margin.left - 5, y + 3);
+        }
+    }
+
+    // Draw chart line and area
+    ctx.beginPath();
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.fillStyle = 'rgba(255, 107, 107, 0.1)';
+    ctx.lineWidth = 2;
+
+    predictions.forEach((pred, index) => {
+        const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
+        const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
+        const y = margin.top + chartHeight - (normalizedValue * chartHeight);
+
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+
+    // Fill area under line
+    const lastX = margin.left + chartWidth;
+    const lastY = margin.top + chartHeight - ((values[values.length - 1] - minValue) / valueRange * chartHeight);
+    ctx.lineTo(lastX, margin.top + chartHeight);
+    ctx.lineTo(margin.left, margin.top + chartHeight);
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw line
+    ctx.beginPath();
+    predictions.forEach((pred, index) => {
+        const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
+        const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
+        const y = margin.top + chartHeight - (normalizedValue * chartHeight);
+
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+    ctx.stroke();
+
+    // Draw data points
+    predictions.forEach((pred, index) => {
+        const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
+        const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
+        const y = margin.top + chartHeight - (normalizedValue * chartHeight);
+
+        // Point circle
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ff6b6b';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Month labels
+        ctx.fillStyle = '#666';
+        ctx.textAlign = 'center';
+        ctx.font = '9px Prompt, Arial, sans-serif';
+        const monthIndex = new Date(pred.date).getMonth();
+        ctx.fillText(monthAbbr[monthIndex], x, height - 5);
+    });
+
+    // Chart title
+    ctx.fillStyle = '#333';
+    ctx.font = 'bold 12px Prompt, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('จำนวนจุดความร้อนคาดการณ์ 2026', width / 2, 15);
 }
 
 // Hotspot click event handler
@@ -676,6 +1041,8 @@ function setupLayerToggle() {
     const hexagonToggle = document.getElementById('hexagon-layer');
     const hotspotToggle = document.getElementById('hotspot-layer');
     const monthSelector = document.getElementById('month-selector');
+    const legendToggle = document.getElementById('legend-toggle');
+    const chartClose = document.getElementById('chart-close');
 
     hexagonToggle.addEventListener('change', function () {
         if (hexagonLayerLoaded) {
@@ -698,6 +1065,41 @@ function setupLayerToggle() {
             updateHexagonColors(this.value);
         }
     });
+
+    // Legend toggle functionality
+    legendToggle.addEventListener('click', function () {
+        const legendContent = document.getElementById('legend-content');
+        const legendControl = document.querySelector('.legend-control');
+        const toggleIcon = this.querySelector('.toggle-icon');
+
+        if (legendContent.classList.contains('collapsed')) {
+            // Expand
+            legendContent.classList.remove('collapsed');
+            legendControl.classList.remove('collapsed');
+            toggleIcon.textContent = '▼';
+        } else {
+            // Collapse
+            legendContent.classList.add('collapsed');
+            legendControl.classList.add('collapsed');
+            toggleIcon.textContent = '▶';
+        }
+    });
+
+    // Chart panel close functionality
+    chartClose.addEventListener('click', function () {
+        const chartPanel = document.getElementById('chart-panel');
+        const mainChart = document.getElementById('main-chart');
+        const chartDetails = document.getElementById('chart-details');
+        const chartInfo = document.getElementById('chart-info');
+
+        // Hide panel
+        chartPanel.style.display = 'none';
+
+        // Reset content
+        mainChart.style.display = 'none';
+        chartDetails.innerHTML = '';
+        chartInfo.innerHTML = '<p><strong>เลือกพื้นที่บนแผนที่เพื่อดูการคาดการณ์</strong></p>';
+    });
 }
 
 // Update map information display
@@ -705,9 +1107,17 @@ function updateMapInfo() {
     const center = map.getCenter();
     const zoom = map.getZoom();
 
-    document.getElementById('zoom-level').textContent = zoom.toFixed(1);
-    document.getElementById('map-center').textContent =
-        `${center.lng.toFixed(3)}, ${center.lat.toFixed(3)}`;
+    // Only update elements if they exist
+    const zoomElement = document.getElementById('zoom-level');
+    const centerElement = document.getElementById('map-center');
+
+    if (zoomElement) {
+        zoomElement.textContent = zoom.toFixed(1);
+    }
+
+    if (centerElement) {
+        centerElement.textContent = `${center.lng.toFixed(3)}, ${center.lat.toFixed(3)}`;
+    }
 }
 
 // Show/hide loading overlay

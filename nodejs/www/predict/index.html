@@ -38,10 +38,6 @@
                     <span class="dark-label">แผนที่ Dark</span>
                 </span>
             </div>
-        </div>
-
-        <!-- Layer Control -->
-        <div class="control-panel layer-control">
             <h3>ชั้นข้อมูล</h3>
             <div class="layer-item">
                 <label>
@@ -61,12 +57,12 @@
 
         <!-- Map Info -->
         <div class="control-panel info-control">
-            <h3>Map Info</h3>
+            <h3>ข้อมูลการพยากรณ์</h3>
             <div class="info-item">
                 <span class="label">เลือกเดือน:</span>
                 <select id="month-selector">
                     <option value="">-- ดูทั้งหมด --</option>
-                    <option value="2026-01-01">มกราคม 2026</option>
+                    <option value="2026-01-01" selected>มกราคม 2026</option>
                     <option value="2026-02-01">กุมภาพันธ์ 2026</option>
                     <option value="2026-03-01">มีนาคม 2026</option>
                     <option value="2026-04-01">เมษายน 2026</option>
@@ -80,13 +76,65 @@
                     <option value="2026-12-01">ธันวาคม 2026</option>
                 </select>
             </div>
-            <div class="info-item">
-                <span class="label">Zoom:</span>
-                <span id="zoom-level">8</span>
+        </div>
+
+        <!-- Legend -->
+        <div class="control-panel legend-control collapsed">
+            <h3 class="legend-header" id="legend-toggle">
+                🔥 สัญลักษณ์ (Legend)
+                <span class="toggle-icon">▶</span>
+            </h3>
+            <div id="legend-content" class="legend-content-collapsible collapsed">
+                <div class="legend-section">
+                    <h4>จำนวนจุดความร้อนที่คาดการณ์</h4>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #d7f4d7;"></div>
+                        <span>0-10 จุด (ต่ำมาก)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #b8e6b8;"></div>
+                        <span>10-25 จุด (ต่ำ)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ffe066;"></div>
+                        <span>25-50 จุด (ปานกลาง)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ffb366;"></div>
+                        <span>50-75 จุด (ค่อนข้างสูง)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff8566;"></div>
+                        <span>75-100 จุด (สูง)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff5566;"></div>
+                        <span>100-150 จุด (สูงมาก)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #cc0000;"></div>
+                        <span>150+ จุด (อันตราย)</span>
+                    </div>
+                </div>
+                <div class="legend-note">
+                    <small>* คลิกบนพื้นที่เพื่อดูรายละเอียด</small>
+                </div>
             </div>
-            <div class="info-item">
-                <span class="label">Center:</span>
-                <span id="map-center">100.0, 18.5</span>
+        </div>
+
+        <!-- Chart Panel -->
+        <div class="control-panel chart-control" id="chart-panel" style="display: none;">
+            <h3 class="chart-header" id="chart-toggle">
+                📊 กราฟการคาดการณ์
+                <span class="close-icon" id="chart-close">✕</span>
+            </h3>
+            <div id="chart-content" class="chart-content">
+                <div id="chart-info" class="chart-info">
+                    <p><strong>เลือกพื้นที่บนแผนที่เพื่อดูการคาดการณ์</strong></p>
+                </div>
+                <canvas id="main-chart" width="240" height="100"
+                    style="border: 1px solid #ddd; border-radius: 4px; background: white; display: none;"></canvas>
+                <div id="chart-details" class="chart-details"></div>
             </div>
         </div>
     </div>
