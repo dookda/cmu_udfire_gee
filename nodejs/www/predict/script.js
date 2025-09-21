@@ -580,9 +580,6 @@ function updateLegend(selectedMonth) {
                     <span>150+ จุด (อันตราย)</span>
                 </div>
             </div>
-            <div class="legend-note">
-                <small>* คลิกบนพื้นที่เพื่อดูรายละเอียด</small>
-            </div>
         `;
     }
 }
@@ -599,7 +596,7 @@ function onHexagonClick(e) {
 
         // Create simplified popup content (only Province, จังหวัด, and Hexagon ID)
         let popupContent = '<div class="popup-content">';
-        popupContent += '<h4>🌲 Forest Hexagon</h4>';
+        // popupContent += '<h4>🌲 Forest Hexagon</h4>';
 
         if (properties.PROV_NAM_E) {
             popupContent += `<p><strong>Province:</strong> ${properties.PROV_NAM_E}</p>`;
@@ -656,6 +653,9 @@ function showChartPanel(predictions, properties) {
     const provinceName = properties.PROV_NAM_T || properties.PROV_NAM_E || 'Unknown';
     chartInfo.innerHTML = `<p><strong>📍 ${provinceName}</strong></p><p>Hexagon ID: ${properties.id || 'N/A'}</p>`;
 
+    // Store chart data for responsive redrawing
+    currentChartData = predictions;
+
     // Show and draw the chart
     mainChart.style.display = 'block';
     setTimeout(() => {
@@ -691,20 +691,312 @@ function showChartPanel(predictions, properties) {
     `;
 }
 
-// Draw chart for main panel (larger size)
+// Interactive chart functionality
+function setupChartInteraction(canvas) {
+    const tooltip = createTooltip();
+    let hoveredPoint = null;
+
+    // Remove existing event listeners to prevent duplicates
+    canvas.removeEventListener('mousemove', canvas.chartMouseMove);
+    canvas.removeEventListener('mouseout', canvas.chartMouseOut);
+    canvas.removeEventListener('click', canvas.chartClick);
+
+    // Mouse move handler
+    canvas.chartMouseMove = function (e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // Scale coordinates to canvas coordinate system
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const canvasX = x * scaleX;
+        const canvasY = y * scaleY;
+
+        hoveredPoint = findNearestPoint(canvas, canvasX, canvasY);
+
+        if (hoveredPoint) {
+            canvas.style.cursor = 'pointer';
+            showTooltip(tooltip, e.clientX, e.clientY, hoveredPoint);
+            redrawChartWithHighlight(canvas, hoveredPoint.index);
+        } else {
+            canvas.style.cursor = 'default';
+            hideTooltip(tooltip);
+            redrawChart(canvas);
+        }
+    };
+
+    // Mouse out handler
+    canvas.chartMouseOut = function () {
+        canvas.style.cursor = 'default';
+        hideTooltip(tooltip);
+        hoveredPoint = null;
+        redrawChart(canvas);
+    };
+
+    // Click handler
+    canvas.chartClick = function (e) {
+        if (hoveredPoint) {
+            showMonthDetails(hoveredPoint);
+        }
+    };
+
+    // Add event listeners
+    canvas.addEventListener('mousemove', canvas.chartMouseMove);
+    canvas.addEventListener('mouseout', canvas.chartMouseOut);
+    canvas.addEventListener('click', canvas.chartClick);
+}
+
+// Create tooltip element
+function createTooltip() {
+    let tooltip = document.getElementById('chart-tooltip');
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'chart-tooltip';
+        tooltip.className = 'chart-tooltip';
+        document.body.appendChild(tooltip);
+    }
+    return tooltip;
+}
+
+// Find nearest point to mouse cursor
+function findNearestPoint(canvas, mouseX, mouseY) {
+    const chartData = canvas.chartData;
+    if (!chartData) return null;
+
+    const { predictions, margin, width, height } = chartData;
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    // Get data values for calculations
+    const values = predictions.map(p => p.predicted_hotspot_count);
+    const maxValue = Math.max(...values);
+    const minValue = Math.min(...values);
+    const valueRange = maxValue - minValue || 1;
+
+    const threshold = 15; // Detection radius in pixels
+    let nearestPoint = null;
+    let minDistance = threshold;
+
+    predictions.forEach((pred, index) => {
+        const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
+        const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
+        const y = margin.top + chartHeight - (normalizedValue * chartHeight);
+
+        const distance = Math.sqrt(Math.pow(mouseX - x, 2) + Math.pow(mouseY - y, 2));
+
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestPoint = {
+                index,
+                x,
+                y,
+                data: pred,
+                distance
+            };
+        }
+    });
+
+    return nearestPoint;
+}
+
+// Show tooltip
+function showTooltip(tooltip, x, y, point) {
+    const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+    const date = new Date(point.data.date);
+    const monthName = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+
+    tooltip.innerHTML = `
+        <div class="tooltip-header">${monthName} ${year}</div>
+        <div class="tooltip-content">
+            <div class="tooltip-value">${Math.round(point.data.predicted_hotspot_count)} จุดความร้อน</div>
+        </div>
+    `;
+
+    tooltip.style.display = 'block';
+    tooltip.style.left = (x + 10) + 'px';
+    tooltip.style.top = (y - 10) + 'px';
+}
+
+// Hide tooltip
+function hideTooltip(tooltip) {
+    tooltip.style.display = 'none';
+}
+
+// Redraw chart with highlighted point
+function redrawChartWithHighlight(canvas, highlightIndex) {
+    const ctx = canvas.getContext('2d');
+    const chartData = canvas.chartData;
+    if (!chartData) return;
+
+    // Redraw the entire chart
+    redrawChart(canvas);
+
+    // Highlight the specific point
+    const { predictions, margin, width, height } = chartData;
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    const values = predictions.map(p => p.predicted_hotspot_count);
+    const maxValue = Math.max(...values);
+    const minValue = Math.min(...values);
+    const valueRange = maxValue - minValue || 1;
+
+    const pred = predictions[highlightIndex];
+    const x = margin.left + (chartWidth / (predictions.length - 1)) * highlightIndex;
+    const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
+    const y = margin.top + chartHeight - (normalizedValue * chartHeight);
+
+    // Draw highlighted point
+    const pointRadius = Math.max(4, Math.round(width / 80)); // Larger highlight radius
+    ctx.beginPath();
+    ctx.arc(x, y, pointRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ff4444';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Add glow effect
+    ctx.shadowColor = '#ff4444';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(x, y, pointRadius - 1, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ff6666';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+}
+
+// Redraw chart without highlights
+function redrawChart(canvas) {
+    const chartData = canvas.chartData;
+    if (!chartData) return;
+
+    // Clear and redraw by calling the main chart function
+    drawMainChart(canvas.id, chartData.predictions);
+}
+
+// Show detailed month information
+function showMonthDetails(point) {
+    const monthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+    const date = new Date(point.data.date);
+    const monthName = monthNames[date.getMonth()];
+    const year = date.getFullYear();
+    const hotspots = Math.round(point.data.predicted_hotspot_count);
+
+    // Create a modal or detailed popup
+    const modal = document.createElement('div');
+    modal.className = 'chart-detail-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📊 รายละเอียดการคาดการณ์</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <span class="label">เดือน:</span>
+                    <span class="value">${monthName} ${year}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">จำนวนจุดความร้อนที่คาดการณ์:</span>
+                    <span class="value highlight">${hotspots} จุด</span>
+                </div>
+                <div class="detail-row">
+                    <span class="label">ระดับความเสี่ยง:</span>
+                    <span class="value ${getRiskClass(hotspots)}">${getRiskLevel(hotspots)}</span>
+                </div>
+                <div class="detail-note">
+                    <small>ข้อมูลการคาดการณ์จากโมเดล AI สำหรับปี 2026</small>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Close modal functionality
+    const closeBtn = modal.querySelector('.modal-close');
+    closeBtn.onclick = () => modal.remove();
+    modal.onclick = (e) => {
+        if (e.target === modal) modal.remove();
+    };
+
+    // Auto close after 10 seconds
+    setTimeout(() => {
+        if (modal.parentNode) modal.remove();
+    }, 10000);
+}
+
+// Get risk level based on hotspot count
+function getRiskLevel(count) {
+    if (count < 10) return 'ต่ำมาก';
+    if (count < 25) return 'ต่ำ';
+    if (count < 50) return 'ปานกลาง';
+    if (count < 75) return 'ค่อนข้างสูง';
+    if (count < 100) return 'สูง';
+    if (count < 150) return 'สูงมาก';
+    return 'อันตราย';
+}
+
+// Get risk CSS class
+function getRiskClass(count) {
+    if (count < 25) return 'low-risk';
+    if (count < 75) return 'medium-risk';
+    return 'high-risk';
+}
+
+// Draw chart for main panel (larger size) with interactive features
 function drawMainChart(canvasId, predictions) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
+
+    // Get container width for responsive sizing
+    const container = canvas.parentElement;
+    const containerWidth = container.clientWidth;
+
+    // Set responsive dimensions
+    const aspectRatio = 2.4; // width:height ratio
+    const canvasWidth = Math.max(200, Math.min(containerWidth - 20, 350)); // Min 200px, max 350px
+    const canvasHeight = Math.round(canvasWidth / aspectRatio);
+
+    // Set canvas size
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
     const width = canvas.width;
     const height = canvas.height;
+
+    // Store chart data and dimensions for interaction
+    canvas.chartData = {
+        predictions,
+        width,
+        height,
+        margin: {
+            top: Math.round(height * 0.15),
+            right: Math.round(width * 0.08),
+            bottom: Math.round(height * 0.25),
+            left: Math.round(width * 0.12)
+        }
+    };
 
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Chart margins and dimensions (adjusted for smaller canvas 140x100)
-    const margin = { top: 15, right: 15, bottom: 25, left: 30 };
+    // Chart margins and dimensions (responsive to canvas size)
+    const margin = {
+        top: Math.round(height * 0.15),
+        right: Math.round(width * 0.08),
+        bottom: Math.round(height * 0.25),
+        left: Math.round(width * 0.12)
+    };
     const chartWidth = width - margin.left - margin.right;
     const chartHeight = height - margin.top - margin.bottom;
 
@@ -718,8 +1010,12 @@ function drawMainChart(canvasId, predictions) {
     const monthAbbr = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
         'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-    // Set font (smaller for compact chart)
-    ctx.font = '8px Prompt, Arial, sans-serif';
+    // Calculate responsive font sizes
+    const baseFontSize = Math.max(8, Math.round(width / 30));
+    const smallFontSize = Math.max(6, Math.round(width / 40));
+
+    // Set font (responsive)
+    ctx.font = `${baseFontSize}px Prompt, Arial, sans-serif`;
     ctx.textAlign = 'center';
 
     // Draw background
@@ -730,29 +1026,30 @@ function drawMainChart(canvasId, predictions) {
     ctx.strokeStyle = '#e0e0e0';
     ctx.lineWidth = 0.5;
 
-    // Horizontal grid lines (reduced to 3 for smaller chart)
-    for (let i = 0; i <= 3; i++) {
-        const y = margin.top + (chartHeight / 3) * i;
+    // Horizontal grid lines (responsive count based on height)
+    const gridLines = height > 80 ? 4 : 3;
+    for (let i = 0; i <= gridLines; i++) {
+        const y = margin.top + (chartHeight / gridLines) * i;
         ctx.beginPath();
         ctx.moveTo(margin.left, y);
         ctx.lineTo(margin.left + chartWidth, y);
         ctx.stroke();
 
-        // Y-axis labels (smaller font)
-        if (i < 3) {
-            const value = Math.round(maxValue - (maxValue / 3) * i);
+        // Y-axis labels (responsive font)
+        if (i < gridLines) {
+            const value = Math.round(maxValue - (maxValue / gridLines) * i);
             ctx.fillStyle = '#666';
             ctx.textAlign = 'right';
-            ctx.font = '7px Prompt, Arial, sans-serif';
+            ctx.font = `${smallFontSize}px Prompt, Arial, sans-serif`;
             ctx.fillText(value.toString(), margin.left - 3, y + 2);
         }
     }
 
-    // Draw chart line and area (thinner line for smaller chart)
+    // Draw chart line and area (responsive line width)
     ctx.beginPath();
     ctx.strokeStyle = '#ff6b6b';
     ctx.fillStyle = 'rgba(255, 107, 107, 0.1)';
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = Math.max(1, Math.round(width / 200));
 
     predictions.forEach((pred, index) => {
         const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
@@ -789,34 +1086,40 @@ function drawMainChart(canvasId, predictions) {
     });
     ctx.stroke();
 
-    // Draw data points (smaller for compact chart)
+    // Draw data points (responsive size)
+    const pointRadius = Math.max(2, Math.round(width / 120));
     predictions.forEach((pred, index) => {
         const x = margin.left + (chartWidth / (predictions.length - 1)) * index;
         const normalizedValue = (pred.predicted_hotspot_count - minValue) / valueRange;
         const y = margin.top + chartHeight - (normalizedValue * chartHeight);
 
-        // Point circle (smaller)
+        // Point circle (responsive size)
         ctx.beginPath();
-        ctx.arc(x, y, 2, 0, 2 * Math.PI);
+        ctx.arc(x, y, pointRadius, 0, 2 * Math.PI);
         ctx.fillStyle = '#ff6b6b';
         ctx.fill();
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = Math.max(1, Math.round(pointRadius / 2));
         ctx.stroke();
 
-        // Month labels only (no value labels to avoid clutter)
+        // Month labels only (responsive font size)
         ctx.fillStyle = '#666';
         ctx.textAlign = 'center';
-        ctx.font = '6px Prompt, Arial, sans-serif';
+        ctx.font = `${smallFontSize}px Prompt, Arial, sans-serif`;
         const monthIndex = new Date(pred.date).getMonth();
-        ctx.fillText(monthAbbr[monthIndex], x, height - 5);
+        const labelY = height - Math.max(5, Math.round(height * 0.05));
+        ctx.fillText(monthAbbr[monthIndex], x, labelY);
     });
 
-    // Chart title (smaller font)
+    // Chart title (responsive font size)
     ctx.fillStyle = '#333';
-    ctx.font = 'bold 8px Prompt, Arial, sans-serif';
+    ctx.font = `bold ${baseFontSize}px Prompt, Arial, sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText('การคาดการณ์ 2026', width / 2, 10);
+    const titleY = Math.max(10, Math.round(height * 0.08));
+    ctx.fillText('การคาดการณ์ 2026', width / 2, titleY);
+
+    // Add interactive functionality
+    setupChartInteraction(canvas);
 }
 
 // Draw prediction chart on canvas
@@ -1042,6 +1345,7 @@ function setupLayerToggle() {
     const hotspotToggle = document.getElementById('hotspot-layer');
     const monthSelector = document.getElementById('month-selector');
     const legendToggle = document.getElementById('legend-toggle');
+    const basemapToggleHeader = document.getElementById('basemap-toggle-header');
     const chartClose = document.getElementById('chart-close');
 
     hexagonToggle.addEventListener('change', function () {
@@ -1067,23 +1371,50 @@ function setupLayerToggle() {
     });
 
     // Legend toggle functionality
-    legendToggle.addEventListener('click', function () {
-        const legendContent = document.getElementById('legend-content');
-        const legendControl = document.querySelector('.legend-control');
-        const toggleIcon = this.querySelector('.toggle-icon');
+    if (legendToggle) {
+        legendToggle.addEventListener('click', function () {
+            const legendContent = document.getElementById('legend-content');
+            const legendControl = document.querySelector('.legend-control');
+            const toggleIcon = this.querySelector('.toggle-icon');
 
-        if (legendContent.classList.contains('collapsed')) {
-            // Expand
-            legendContent.classList.remove('collapsed');
-            legendControl.classList.remove('collapsed');
-            toggleIcon.textContent = '▼';
-        } else {
-            // Collapse
-            legendContent.classList.add('collapsed');
-            legendControl.classList.add('collapsed');
-            toggleIcon.textContent = '▶';
-        }
-    });
+            if (legendContent && legendControl && toggleIcon) {
+                if (legendContent.classList.contains('collapsed')) {
+                    // Expand
+                    legendContent.classList.remove('collapsed');
+                    legendControl.classList.remove('collapsed');
+                    toggleIcon.textContent = '▼';
+                } else {
+                    // Collapse
+                    legendContent.classList.add('collapsed');
+                    legendControl.classList.add('collapsed');
+                    toggleIcon.textContent = '▶';
+                }
+            }
+        });
+    }
+
+    // Basemap toggle functionality
+    if (basemapToggleHeader) {
+        basemapToggleHeader.addEventListener('click', function () {
+            const basemapContent = document.getElementById('basemap-content');
+            const basemapControl = document.querySelector('.basemap-control');
+            const toggleIcon = this.querySelector('.toggle-icon');
+
+            if (basemapContent && basemapControl && toggleIcon) {
+                if (basemapContent.classList.contains('collapsed')) {
+                    // Expand
+                    basemapContent.classList.remove('collapsed');
+                    basemapControl.classList.remove('collapsed');
+                    toggleIcon.textContent = '▼';
+                } else {
+                    // Collapse
+                    basemapContent.classList.add('collapsed');
+                    basemapControl.classList.add('collapsed');
+                    toggleIcon.textContent = '▶';
+                }
+            }
+        });
+    }
 
     // Chart panel close functionality
     chartClose.addEventListener('click', function () {
@@ -1095,10 +1426,11 @@ function setupLayerToggle() {
         // Hide panel
         chartPanel.style.display = 'none';
 
-        // Reset content
+        // Reset content and clear chart data
         mainChart.style.display = 'none';
         chartDetails.innerHTML = '';
         chartInfo.innerHTML = '<p><strong>เลือกพื้นที่บนแผนที่เพื่อดูการคาดการณ์</strong></p>';
+        currentChartData = null; // Clear chart data
     });
 }
 
@@ -1171,9 +1503,20 @@ function showNotification(message, type = 'info') {
 }
 
 // Responsive map resize
+let currentChartData = null; // Store current chart data for redrawing
+
 function handleResize() {
     if (map) {
         map.resize();
+    }
+
+    // Redraw chart if it exists and is visible
+    const chartCanvas = document.getElementById('main-chart');
+    if (chartCanvas && chartCanvas.style.display !== 'none' && currentChartData) {
+        // Small delay to ensure container has resized
+        setTimeout(() => {
+            drawMainChart('main-chart', currentChartData);
+        }, 100);
     }
 }
 

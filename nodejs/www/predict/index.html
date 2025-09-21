@@ -26,38 +26,48 @@
     <!-- Floating Controls -->
     <div class="map-controls">
         <!-- Basemap Toggle -->
-        <div class="control-panel basemap-control">
-            <h3>แผนที่ฐาน</h3>
-            <div class="toggle-container">
-                <label class="toggle-switch">
-                    <input type="checkbox" id="basemap-toggle">
-                    <span class="slider"></span>
-                </label>
-                <span class="toggle-label">
-                    <span class="light-label">แผนที่ Light</span>
-                    <span class="dark-label">แผนที่ Dark</span>
-                </span>
-            </div>
-            <h3>ชั้นข้อมูล</h3>
-            <div class="layer-item">
-                <label>
-                    <input type="checkbox" id="hexagon-layer" checked>
-                    <span class="checkmark"></span>
-                    พื้นที่ป่าไม้ (Hexagons)
-                </label>
-            </div>
-            <div class="layer-item">
-                <label>
-                    <input type="checkbox" id="hotspot-layer" checked>
-                    <span class="checkmark"></span>
-                    จุดความร้อน (จาก FIRMS)
-                </label>
+        <div class="control-panel basemap-control collapsed">
+            <h3 class="basemap-header" id="basemap-toggle-header">
+                🗺️ แผนที่ฐาน & ชั้นข้อมูล
+                <span class="toggle-icon">▶</span>
+            </h3>
+            <div id="basemap-content" class="basemap-content-collapsible collapsed">
+                <div class="basemap-section">
+                    <h4>แผนที่ฐาน</h4>
+                    <div class="toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="basemap-toggle">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="toggle-label">
+                            <span class="light-label">แผนที่ Light</span>
+                            <span class="dark-label">แผนที่ Dark</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="layer-section">
+                    <h4>ชั้นข้อมูล</h4>
+                    <div class="layer-item">
+                        <label>
+                            <input type="checkbox" id="hexagon-layer" checked>
+                            <span class="checkmark"></span>
+                            พื้นที่ป่าไม้ (Hexagons)
+                        </label>
+                    </div>
+                    <div class="layer-item">
+                        <label>
+                            <input type="checkbox" id="hotspot-layer" checked>
+                            <span class="checkmark"></span>
+                            จุดความร้อน (จาก FIRMS)
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Map Info -->
         <div class="control-panel info-control">
-            <h3>ข้อมูลการพยากรณ์</h3>
+            <h3>ข้อมูลคาดการณ์</h3>
             <div class="info-item">
                 <span class="label">เลือกเดือน:</span>
                 <select id="month-selector">
@@ -81,7 +91,7 @@
         <!-- Legend -->
         <div class="control-panel legend-control collapsed">
             <h3 class="legend-header" id="legend-toggle">
-                🔥 สัญลักษณ์ (Legend)
+                สัญลักษณ์ (Legend)
                 <span class="toggle-icon">▶</span>
             </h3>
             <div id="legend-content" class="legend-content-collapsible collapsed">
@@ -116,9 +126,6 @@
                         <span>150+ จุด (อันตราย)</span>
                     </div>
                 </div>
-                <div class="legend-note">
-                    <small>* คลิกบนพื้นที่เพื่อดูรายละเอียด</small>
-                </div>
             </div>
         </div>
 
@@ -132,8 +139,9 @@
                 <div id="chart-info" class="chart-info">
                     <p><strong>เลือกพื้นที่บนแผนที่เพื่อดูการคาดการณ์</strong></p>
                 </div>
-                <canvas id="main-chart" width="240" height="100"
-                    style="border: 1px solid #ddd; border-radius: 4px; background: white; display: none;"></canvas>
+                <div class="chart-canvas-container">
+                    <canvas id="main-chart" style="display: none;"></canvas>
+                </div>
                 <div id="chart-details" class="chart-details"></div>
             </div>
         </div>
