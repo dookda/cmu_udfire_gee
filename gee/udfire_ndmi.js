@@ -2,16 +2,36 @@ Map.setOptions('SATELLITE');
 // 1. Define study areas (can be customized)
 var ud = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/paktab");
 var mt = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/meatha_n");
-var ky = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/khunyoam");
 var vs = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/winagsa");
-var ms = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/measariang");
+// var ms = ee.FeatureCollection("projects/ee-sakda-451407/assets/fire/measariang");
+
+var provinceName = 'Mae Hong Son';
+
+// --- โหลดขอบเขตอำเภอ (ADM2) ของประเทศไทย ---
+var gaulAdm2 = ee.FeatureCollection('FAO/GAUL/2015/level2')
+    .filter(ee.Filter.eq('ADM0_NAME', 'Thailand'))
+    .filter(ee.Filter.eq('ADM1_NAME', provinceName));
+
+var ms = gaulAdm2.filter(ee.Filter.eq('ADM2_NAME', 'Mae Sariang'));
+var ky = gaulAdm2.filter(ee.Filter.eq('ADM2_NAME', 'Khun Yuam'));
+var hs = gaulAdm2.filter(ee.Filter.eq('ADM2_NAME', 'Muang Mae Hong Son'));
+var mln = gaulAdm2.filter(ee.Filter.eq('ADM2_NAME', 'Mae La Noi'));
+var pth = gaulAdm2.filter(ee.Filter.eq('ADM2_NAME', 'Pai'));
+var sng = gaulAdm2.filter(ee.Filter.eq('ADM2_NAME', 'Sop Moei'));
+var pmp = gaulAdm2.filter(ee.Filter.eq('ADM2_NAME', 'Pang Mapha'));
+
 
 var studyAreas = {
     'ปากทับ จ.อุตรดิตถ์': ud,
     'แม่ทา จ.เชียงใหม่': mt,
-    'ขุนยวม จ.แม่ฮ่องสอน': ky,
-    'เวียงสา จ.น่าน': vs,
-    'แม่สะเรียง จ.แม่ฮ่องสอน': ms
+    'อ.เวียงสา จ.น่าน': vs,
+    'อ.แม่สะเรียง แม่ฮ่องสอน': ms,
+    'อ.เมือง แม่ฮ่องสอน': hs,
+    'อ.แม่ลาน้อย แม่ฮ่องสอน': mln,
+    'อ.ปาย แม่ฮ่องสอน': pth,
+    'อ.สบเมย แม่ฮ่องสอน': sng,
+    'อ.ปางมะผ้า แม่ฮ่องสอน': pmp,
+    'อ.ขุนยวม แม่ฮ่องสอน': ky
 };
 
 // 2. NDMI calculation function
