@@ -140,7 +140,7 @@ async function loadHexagonLayer() {
             data: geojsonData
         });
 
-        // Add hexagon fill layer
+        // Add hexagon fill layer (2D)
         map.addLayer({
             id: 'hexagon-fill',
             type: 'fill',
@@ -168,34 +168,70 @@ async function loadHexagonLayer() {
             }
         });
 
-        // Add hexagon border layer
+        // Add hexagon 3D extrusion layer
         map.addLayer({
-            id: 'hexagon-border',
-            type: 'line',
+            id: 'hexagon-extrusion',
+            type: 'fill-extrusion',
             source: 'hexagon-source',
             paint: {
-                'line-color': '#ffffff',
-                'line-width': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    5, 0.25,
-                    10, 0.5,
-                    15, 1
+                'fill-extrusion-color': [
+                    'case',
+                    ['has', 'Shape_Area'],
+                    [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'Shape_Area'],
+                        0, '#feedde',
+                        1000, '#fdd49e',
+                        5000, '#fdbb84',
+                        10000, '#fc8d59',
+                        20000, '#ef6548',
+                        50000, '#d7301f',
+                        100000, '#990000'
+                    ],
+                    '#cccccc'
                 ],
-                'line-opacity': 0.8
+                'fill-extrusion-height': [
+                    'case',
+                    ['has', 'Shape_Area'],
+                    [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'Shape_Area'],
+                        0, 100,
+                        1000, 200,
+                        5000, 500,
+                        10000, 1000,
+                        20000, 2000,
+                        50000, 5000,
+                        100000, 10000
+                    ],
+                    100 // Default height
+                ],
+                'fill-extrusion-base': 0,
+                'fill-extrusion-opacity': 0.8
+            },
+            layout: {
+                'visibility': 'none' // Start hidden, will be shown when predictions are selected
             }
         });
 
-        // Add click event for hexagons
+        // Add click event for hexagons (both 2D and 3D layers)
         map.on('click', 'hexagon-fill', onHexagonClick);
+        map.on('click', 'hexagon-extrusion', onHexagonClick);
 
-        // Change cursor on hover
+        // Change cursor on hover (both layers)
         map.on('mouseenter', 'hexagon-fill', () => {
+            map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseenter', 'hexagon-extrusion', () => {
             map.getCanvas().style.cursor = 'pointer';
         });
 
         map.on('mouseleave', 'hexagon-fill', () => {
+            map.getCanvas().style.cursor = '';
+        });
+        map.on('mouseleave', 'hexagon-extrusion', () => {
             map.getCanvas().style.cursor = '';
         });
 
@@ -393,6 +429,7 @@ function updateHexagonColors(selectedMonth) {
     if (!map.getLayer('hexagon-fill')) return;
 
     let fillColorExpression;
+    let extrusionHeightExpression;
 
     if (!selectedMonth) {
         // Default coloring based on Shape_Area
@@ -413,62 +450,32 @@ function updateHexagonColors(selectedMonth) {
             ],
             '#cccccc'
         ];
-    } else {
-        // Color based on predictions for selected month
-        fillColorExpression = [
+
+        // Default height based on Shape_Area
+        extrusionHeightExpression = [
             'case',
-            // Check if predictions exist and extract value for selected month
-            [
-                'any',
-                [
-                    'all',
-                    ['has', 'predictions'],
-                    [
-                        '>',
-                        [
-                            'length',
-                            [
-                                'filter',
-                                ['literal', JSON.parse('[]')], // This will be dynamically built
-                                ['==', ['get', 'date'], selectedMonth]
-                            ]
-                        ],
-                        0
-                    ]
-                ]
-            ],
-            // Color interpolation based on predicted hotspot count
+            ['has', 'Shape_Area'],
             [
                 'interpolate',
                 ['linear'],
-                // Extract prediction value for the selected month
-                [
-                    'get',
-                    'predicted_hotspot_count',
-                    [
-                        'at',
-                        0,
-                        [
-                            'filter',
-                            ['get', 'predictions'],
-                            ['==', ['get', 'date'], selectedMonth]
-                        ]
-                    ]
-                ],
-                0, '#d7f4d7',    // Very low (green)
-                10, '#b8e6b8',   // Low
-                25, '#ffe066',   // Medium-low (yellow)
-                50, '#ffb366',   // Medium (orange)
-                75, '#ff8566',   // Medium-high
-                100, '#ff5566',  // High (red)
-                150, '#cc0000',  // Very high (dark red)
-                200, '#990000'   // Extreme (very dark red)
+                ['get', 'Shape_Area'],
+                0, 100,
+                1000, 200,
+                5000, 500,
+                10000, 1000,
+                20000, 2000,
+                50000, 5000,
+                100000, 10000
             ],
-            '#cccccc' // Default gray for no predictions
+            100 // Default height
         ];
 
-        // Since MapLibre expressions have limitations with complex JSON parsing,
-        // let's use a simpler approach with multiple case statements
+        // Show 2D layer, hide 3D layer for default view
+        map.setLayoutProperty('hexagon-fill', 'visibility', 'visible');
+        map.setLayoutProperty('hexagon-extrusion', 'visibility', 'none');
+
+    } else {
+        // Color and height based on predictions for selected month
         fillColorExpression = [
             'case',
             ['has', 'predictions'],
@@ -488,15 +495,46 @@ function updateHexagonColors(selectedMonth) {
             ],
             '#cccccc' // Default gray for no predictions
         ];
+
+        // Height based on predicted hotspot count
+        extrusionHeightExpression = [
+            'case',
+            ['has', 'predictions'],
+            [
+                'interpolate',
+                ['linear'],
+                ['coalesce', ['get', `pred_${selectedMonth.replace(/-/g, '_')}`], 0],
+                0, 100,      // Very low - 100m
+                10, 300,     // Low - 300m
+                25, 600,     // Medium-low - 600m
+                50, 1200,    // Medium - 1200m
+                75, 2000,    // Medium-high - 2000m
+                100, 3000,   // High - 3000m
+                150, 5000,   // Very high - 5000m
+                200, 8000,   // Extreme - 8000m
+                300, 12000   // Maximum - 12000m
+            ],
+            100 // Default height for no predictions
+        ];
+
+        // Show 3D layer, hide 2D layer for prediction view
+        map.setLayoutProperty('hexagon-fill', 'visibility', 'none');
+        map.setLayoutProperty('hexagon-extrusion', 'visibility', 'visible');
     }
 
-    // Update the layer paint property
+    // Update the layer paint properties
     map.setPaintProperty('hexagon-fill', 'fill-color', fillColorExpression);
+
+    // Update 3D extrusion properties
+    if (map.getLayer('hexagon-extrusion')) {
+        map.setPaintProperty('hexagon-extrusion', 'fill-extrusion-color', fillColorExpression);
+        map.setPaintProperty('hexagon-extrusion', 'fill-extrusion-height', extrusionHeightExpression);
+    }
 
     // Update legend
     updateLegend(selectedMonth);
 
-    console.log(`Updated hexagon colors for month: ${selectedMonth || 'default'}`);
+    console.log(`Updated hexagon colors and heights for month: ${selectedMonth || 'default'}`);
 }
 
 // Update legend based on selected visualization mode
@@ -553,32 +591,35 @@ function updateLegend(selectedMonth) {
                 <h4>จำนวนจุดความร้อนที่คาดการณ์ (${monthName})</h4>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #d7f4d7;"></div>
-                    <span>0-10 จุด (ต่ำมาก)</span>
+                    <span>0-10 จุด (ต่ำมาก) - ความสูง: 100-300m</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #b8e6b8;"></div>
-                    <span>10-25 จุด (ต่ำ)</span>
+                    <span>10-25 จุด (ต่ำ) - ความสูง: 300-600m</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #ffe066;"></div>
-                    <span>25-50 จุด (ปานกลาง)</span>
+                    <span>25-50 จุด (ปานกลาง) - ความสูง: 600-1200m</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #ffb366;"></div>
-                    <span>50-75 จุด (ค่อนข้างสูง)</span>
+                    <span>50-75 จุด (ค่อนข้างสูง) - ความสูง: 1200-2000m</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #ff8566;"></div>
-                    <span>75-100 จุด (สูง)</span>
+                    <span>75-100 จุด (สูง) - ความสูง: 2000-3000m</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #ff5566;"></div>
-                    <span>100-150 จุด (สูงมาก)</span>
+                    <span>100-150 จุด (สูงมาก) - ความสูง: 3000-5000m</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background-color: #cc0000;"></div>
-                    <span>150+ จุด (อันตราย)</span>
+                    <span>150+ จุด (อันตราย) - ความสูง: 5000m+</span>
                 </div>
+            </div>
+            <div class="legend-note">
+                <small>💡 ความสูงของรูปหกเหลี่ยมแสดงถึงจำนวนจุดความร้อนที่คาดการณ์</small>
             </div>
         `;
     }
@@ -586,10 +627,11 @@ function updateLegend(selectedMonth) {
 
 // Hexagon click event handler
 function onHexagonClick(e) {
-    console.log(e);
+    // console.log(e);
 
+    // Query both 2D and 3D hexagon layers
     const features = map.queryRenderedFeatures(e.point, {
-        layers: ['hexagon-fill']
+        layers: ['hexagon-fill', 'hexagon-extrusion']
     });
 
     if (features.length > 0) {
@@ -1353,8 +1395,20 @@ function setupLayerToggle() {
     hexagonToggle.addEventListener('change', function () {
         if (hexagonLayerLoaded) {
             const visibility = this.checked ? 'visible' : 'none';
-            map.setLayoutProperty('hexagon-fill', 'visibility', visibility);
-            map.setLayoutProperty('hexagon-border', 'visibility', visibility);
+
+            // Get current month selection to determine which layer to show
+            const monthSelector = document.getElementById('month-selector');
+            const selectedMonth = monthSelector ? monthSelector.value : null;
+
+            if (selectedMonth) {
+                // If month is selected, show/hide 3D extrusion layer
+                map.setLayoutProperty('hexagon-extrusion', 'visibility', visibility);
+                map.setLayoutProperty('hexagon-fill', 'visibility', 'none');
+            } else {
+                // If no month selected, show/hide 2D fill layer
+                map.setLayoutProperty('hexagon-fill', 'visibility', visibility);
+                map.setLayoutProperty('hexagon-extrusion', 'visibility', 'none');
+            }
         }
     });
 
