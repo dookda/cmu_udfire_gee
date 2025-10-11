@@ -179,9 +179,9 @@ async function loadHexagonLayer() {
                     'interpolate',
                     ['linear'],
                     ['zoom'],
-                    5, 0.5,
-                    10, 1,
-                    15, 2
+                    5, 0.25,
+                    10, 0.5,
+                    15, 1
                 ],
                 'line-opacity': 0.8
             }
@@ -586,6 +586,8 @@ function updateLegend(selectedMonth) {
 
 // Hexagon click event handler
 function onHexagonClick(e) {
+    console.log(e);
+
     const features = map.queryRenderedFeatures(e.point, {
         layers: ['hexagon-fill']
     });
@@ -607,11 +609,11 @@ function onHexagonClick(e) {
         }
 
         if (properties.id) {
-            popupContent += `<p><strong>Hexagon ID:</strong> ${properties.id}</p>`;
+            popupContent += `<p><strong>พิกัด:</strong> ${(e.lngLat.lat).toFixed(3)}, ${(e.lngLat.lng).toFixed(3)}</p>`;
         }
 
-        popupContent += '<hr style="margin: 10px 0; border: none; border-top: 1px solid #ddd;">';
-        popupContent += '<p style="text-align: center; color: #666; font-size: 12px;">📊 ดูกราฟการคาดการณ์ในด้านขวา</p>';
+        // popupContent += '<hr style="margin: 10px 0; border: none; border-top: 1px solid #ddd;">';
+        // popupContent += '<p style="text-align: center; color: #666; font-size: 12px;">📊 ดูกราฟการคาดการณ์ในด้านขวา</p>';
         popupContent += '</div>';
 
         // Show popup
@@ -633,14 +635,14 @@ function onHexagonClick(e) {
             }
 
             if (Array.isArray(predictions) && predictions.length > 0) {
-                showChartPanel(predictions, properties);
+                showChartPanel(predictions, properties, e.lngLat);
             }
         }
     }
 }
 
 // Show chart panel with prediction data
-function showChartPanel(predictions, properties) {
+function showChartPanel(predictions, properties, lngLat) {
     const chartPanel = document.getElementById('chart-panel');
     const chartInfo = document.getElementById('chart-info');
     const mainChart = document.getElementById('main-chart');
@@ -651,7 +653,7 @@ function showChartPanel(predictions, properties) {
 
     // Update chart info
     const provinceName = properties.PROV_NAM_T || properties.PROV_NAM_E || 'Unknown';
-    chartInfo.innerHTML = `<p><strong>📍 ${provinceName}</strong></p><p>Hexagon ID: ${properties.id || 'N/A'}</p>`;
+    chartInfo.innerHTML = `<p><strong>📍 ${provinceName}</strong></p><p>พิกัด: ${(lngLat.lat).toFixed(3)}, ${(lngLat.lng).toFixed(3)}</p>`;
 
     // Store chart data for responsive redrawing
     currentChartData = predictions;
